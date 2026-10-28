@@ -6,6 +6,10 @@ import {
   loadWorkspace,
   saveWorkspace,
 } from './services/workspaceStorage';
+
+import { DocumentReader } from './components/DocumentReader';
+import { DocumentSidebar } from './components/DocumentSidebar';
+import { NoteEditor } from './components/NoteEditor';
 //建立页面状态
 function App() {
   const [loadResult] = useState(loadWorkspace);
@@ -90,82 +94,45 @@ function App() {
     setSaveMessage('保存失败，修改仍保留在当前页面，请稍后重试');
   }
 }
+function handleNoteChange(content: string) {
+  if (loadError || !selectedDocument) {
+    return;
+  }
 
+  setNotesById((previousNotes) => ({
+    ...previousNotes,
+    [selectedId]: content,
+  }));
+
+  setSaveMessage('有修改尚未保存');
+}
   return(
     <div>
       <h1>AI资料研读工作台</h1>
       <p>把学习资料整理成自己的笔记</p>
     
     <div className="workspace">
-      <aside className="sidebar">
-        <h2>我的资料</h2>
-        <label htmlFor="documents-file">导入学习资料</label>
-        <input
-          id="documents-file"
-          type="file"
-          accept=".txt,.md"
-          disabled={isReadingFile ||Boolean(loadError)}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = '';//用于重置文件输入框，让用户之后重新选择同一个文件时，也能再次触发检查。
-            if (!file) {
-              return; 
-            }
-            handleReadNotes(file);
-          }}
-        />
-        <p role="status">{importMessage}</p >
-        <ul>
-          {documents.map((doc) => (
-            <li key={doc.id}>
-              <button
-                type="button"
-                className={doc.id === selectedId ? 'document-active' : ''}
-                onClick={() => setSelectedId(doc.id)}
-              >
-              {doc.title}</button>
-              
-            </li>
-          ))}
-        </ul>
-      </aside>
+      <DocumentSidebar
+          documents={documents}
+          selectedId={selectedId}
+          importMessage={importMessage}
+          importDisabled={isReadingFile || Boolean(loadError)}
+          onSelect={setSelectedId}
+          onImport={handleReadNotes}
+/>
 
-      <main className="reader">
-        <h2>{selectedDocument ? selectedDocument.title : '请选择资料'}</h2>
-        <p className = "reader-content">{selectedDocument ? selectedDocument.content : '点击左侧资料查看正文'}</p  >
-      </main>
-
-      <section className="notes">
-        <h2>我的笔记</h2>
-        <p>
-          当前资料:{selectedDocument?.title ?? '未选择资料'}
-        </p>
-        {loadError && <p role="alert">{loadError}</p>}
-        <textarea
-          className="note-editor"
-          aria-label="我的笔记"
-          placeholder="记录你对这份资料的理解、重点和疑问 "
-          value={note}
-          disabled={Boolean(loadError) || selectedDocument === undefined}
-          onChange={(event) => {
-            const content = event.target.value
-            setNotesById((previousNotes) => ({
-              ...previousNotes,
-              [selectedId]: content,
-            }));
-            setSaveMessage('有修改尚未保存')
-          }}  
-        /> 
-        <p>已输入 {note.length} 个字符</p> 
-        <button 
-          type="button" 
-          onClick={handleSaveNotes} 
-          disabled={Boolean(loadError) || isReadingFile  }
-        >
-          保存全部笔记
-        </button>
-        <p role="status">{saveMessage}</p>
-      </section> 
+      <DocumentReader document={selectedDocument} />
+      <NoteEditor
+        documentTitle={selectedDocument?.title ?? '未选择资料'}
+        note={note}
+        loadError={loadError}
+        editDisabled={Boolean(loadError) || !selectedDocument}
+        saveDisabled={Boolean(loadError) || isReadingFile}
+        saveMessage={saveMessage}
+        onNoteChange={handleNoteChange}
+        onSave={handleSaveNotes}
+      />
+      
     </div>
   </div>
   )
