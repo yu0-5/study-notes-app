@@ -1,0 +1,40 @@
+.workspace {
+  display: grid;
+  /* 左侧固定 240px，中间占剩余空间，右侧固定 320px */
+  grid-template-columns: 240px minmax(0, 1fr) 320px; 
+  gap: 16px;
+  padding: 16px;
+  min-height:60vh;
+  text-align:left;
+}
+
+.sidebar,
+.reader,
+.notes{
+  min-width: 0;
+  padding: 16px;
+  border:1px solid #dfe3e8;
+  border-radius:8px;
+}
+
+.document-active {
+  background-color: #ede9fe;
+  border-color: #77bfe9;
+  font-weight:600;
+}
+
+.note-editor{
+  box-sizing:border-box;
+  width:100%;
+  min-height: 300px;
+  border:1px solid #dfe3e8;
+  border-radius:8px;
+  font:inherit;
+  line-height:1.6;
+  resize:vertical;
+}
+
+.reader-content{
+  white-space: pre-wrap;
+  overflow-wrap:anywhere;
+}
