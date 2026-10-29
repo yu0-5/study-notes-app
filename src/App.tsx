@@ -10,6 +10,10 @@ import {
 import { DocumentReader } from './components/DocumentReader';
 import { DocumentSidebar } from './components/DocumentSidebar';
 import { NoteEditor } from './components/NoteEditor';
+import { 
+  DEFAULT_PROJECT_ID,
+  initialProjects,
+ } from './data/initialProjects';
 //建立页面状态
 function App() {
   const [loadResult] = useState(loadWorkspace);
@@ -29,7 +33,7 @@ function App() {
   const [isReadingFile, setIsReadingFile] = useState(false);
   const selectedDocument = documents.find((doc) => doc.id === selectedId);
   const note = notesById[selectedId] ?? '';
-  
+  const [searchQuery, setSearchQuery] = useState('');
   async function handleReadNotes(file: File){
     if(loadError){
       setImportMessage('读取异常尚未解决，暂时无法导入资料');
@@ -59,12 +63,14 @@ function App() {
       }
       const newDocument: StudyDocument = {
         id: crypto.randomUUID(),
+        projectId: DEFAULT_PROJECT_ID,
         title: file.name.replace(/\.(txt|md)$/i, '').trim() || '未命名资料',
         content,
       };
       setDocuments((previousDocuments) => [newDocument, ...previousDocuments]);
 
       setSelectedId(newDocument.id);
+      setSearchQuery('');
       setSaveMessage('有新资料尚未保存');
 
       setImportMessage(`已导入:${newDocument.title}`);
@@ -106,19 +112,91 @@ function handleNoteChange(content: string) {
 
   setSaveMessage('有修改尚未保存');
 }
+const keyword = searchQuery.trim().toLowerCase();
+
+//删除处理函数
+function handleDeleteDocument(id: string) {
+  if (loadError || isReadingFile) {
+    return;
+  }
+
+  const target = documents.find((doc) => doc.id === id);
+
+  if (!target) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `删除“${target.title}”及其关联笔记？\n` +
+    '未保存的笔记也会移除。删除结果需要点击保存后才会持久化。'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const remainingDocuments = documents.filter(
+    (doc) => doc.id !== id
+  );
+
+  setDocuments(remainingDocuments);
+
+  setNotesById((previousNotes) => {
+    const nextNotes = { ...previousNotes };
+
+    delete nextNotes[id];
+
+    return nextNotes;
+  });
+
+  if (selectedId === id) {
+    setSelectedId(remainingDocuments[0]?.id ?? '');
+    setSearchQuery('');
+  }
+
+  setImportMessage('');
+  setSaveMessage('已删除资料及关联笔记，尚未保存');
+}
+
+const visibleDocuments = documents.filter((doc) =>
+  doc.title.toLowerCase().includes(keyword)
+);
   return(
     <div>
       <h1>AI资料研读工作台</h1>
       <p>把学习资料整理成自己的笔记</p>
+      <div className="workspace-toolbar">
+        <label htmlFor="document-search">搜索资料标题</label>
+
+        <input
+            id="document-search"
+            type="search"
+            placeholder="输入标题关键词"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+                />
+
+            <button
+            type="button"
+            disabled={searchQuery === ''}
+            onClick={() => setSearchQuery('')}
+            >
+            清空搜索
+            </button>
+      </div>
     
     <div className="workspace">
       <DocumentSidebar
-          documents={documents}
+          documents={visibleDocuments}
           selectedId={selectedId}
           importMessage={importMessage}
           importDisabled={isReadingFile || Boolean(loadError)}
           onSelect={setSelectedId}
           onImport={handleReadNotes}
+          searchQuery={searchQuery}
+          projects={initialProjects}
+          deleteDisabled={Boolean(loadError) || isReadingFile}
+          onDelete={handleDeleteDocument}
 />
 
       <DocumentReader document={selectedDocument} />
