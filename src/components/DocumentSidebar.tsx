@@ -86,7 +86,7 @@ export function DocumentSidebar({
                         ):(
                             <ul className="project-documents">
                                 {projectDocuments.map((doc) => (
-                                <li key={doc.id} className="project-row">
+                                <li key={doc.id} className="document-row">
                                     <button
                                       type="button"
                                       className={
