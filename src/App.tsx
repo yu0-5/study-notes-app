@@ -1,4 +1,4 @@
-import{ useState } from 'react'
+import{useEffect, useState } from 'react'
 import './App.css'
 import { validateTextFile } from './utils/textFile';
 import type { StudyDocument } from './types/document';
@@ -14,9 +14,30 @@ import {
   DEFAULT_PROJECT_ID,
   initialProjects,
  } from './data/initialProjects';
+
+ //用于比较的快照函数
+ function createWorkspaceSnapshot(
+  documents: StudyDocument[], 
+  notes: Record<string, string>
+): string {
+  const normalizedNotes = Object.fromEntries(
+    Object.entries(notes)
+    .filter(([,content]) =>content !=='')
+    .sort(([idA], [idB]) => idA.localeCompare(idB))
+  );
+  return JSON.stringify({
+    documents,
+    notes: normalizedNotes,
+  });
+}
+
 //建立页面状态
 function App() {
   const [loadResult] = useState(loadWorkspace);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => 
+    createWorkspaceSnapshot(loadResult.documents, loadResult.notes)
+  );
+  
 
   const [documents, setDocuments] =
     useState<StudyDocument[]>(loadResult.documents);
@@ -26,8 +47,17 @@ function App() {
 
   const [notesById, setNotesById] =
     useState<Record<string, string>>(loadResult.notes);
-
+  
   const loadError = loadResult.error;
+
+  const currentSnapshot = createWorkspaceSnapshot(
+    documents,
+    notesById
+  );
+  const hasUnsavedChanges = 
+    !loadError && currentSnapshot !== savedSnapshot;
+
+  
   const [saveMessage, setSaveMessage] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [isReadingFile, setIsReadingFile] = useState(false);
@@ -71,7 +101,7 @@ function App() {
 
       setSelectedId(newDocument.id);
       setSearchQuery('');
-      setSaveMessage('有新资料尚未保存');
+      setSaveMessage('');
 
       setImportMessage(`已导入:${newDocument.title}`);
     } catch (error) {
@@ -93,7 +123,7 @@ function App() {
   }
   try {
     saveWorkspace(documents, notesById);
-
+    setSavedSnapshot(currentSnapshot);
     setSaveMessage('全部笔记已保存到当前浏览器');
   } catch(error) {
     console.error('保存笔记失败', error);
@@ -109,8 +139,8 @@ function handleNoteChange(content: string) {
     ...previousNotes,
     [selectedId]: content,
   }));
-
-  setSaveMessage('有修改尚未保存');
+  setSaveMessage('');
+  
 }
 const keyword = searchQuery.trim().toLowerCase();
 
@@ -155,35 +185,53 @@ function handleDeleteDocument(id: string) {
   }
 
   setImportMessage('');
-  setSaveMessage('已删除资料及关联笔记，尚未保存');
+  setSaveMessage('');
 }
 
 const visibleDocuments = documents.filter((doc) =>
   doc.title.toLowerCase().includes(keyword)
 );
-  return(
-    <div>
-      <h1>AI资料研读工作台</h1>
-      <p>把学习资料整理成自己的笔记</p>
-      <div className="workspace-toolbar">
-        <label htmlFor="document-search">搜索资料标题</label>
 
-        <input
-            id="document-search"
-            type="search"
-            placeholder="输入标题关键词"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-                />
+useEffect(() => {
+  if(!hasUnsavedChanges){
+    return;
+  }
 
-            <button
-            type="button"
-            disabled={searchQuery === ''}
-            onClick={() => setSearchQuery('')}
-            >
-            清空搜索
-            </button>
-      </div>
+  function handleBeforeUnload(event: BeforeUnloadEvent){
+    event.preventDefault();
+    
+  }
+
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+  };
+},[hasUnsavedChanges])
+
+return(
+  <div>
+    <h1>AI资料研读工作台</h1>
+    <p>把学习资料整理成自己的笔记</p>
+    <div className="workspace-toolbar">
+      <label htmlFor="document-search">搜索资料标题</label>
+
+      <input
+          id="document-search"
+          type="search"
+          placeholder="输入标题关键词"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+      />
+
+      <button
+          type="button"
+          disabled={searchQuery === ''}
+          onClick={() => setSearchQuery('')}
+      >
+          清空搜索
+      </button>
+    </div>
     
     <div className="workspace">
       <DocumentSidebar
@@ -206,7 +254,11 @@ const visibleDocuments = documents.filter((doc) =>
         loadError={loadError}
         editDisabled={Boolean(loadError) || !selectedDocument}
         saveDisabled={Boolean(loadError) || isReadingFile}
-        saveMessage={saveMessage}
+        saveMessage={
+          hasUnsavedChanges
+           ? `有修改尚未保存${saveMessage ?`; ${saveMessage}`:''}` 
+           : saveMessage
+        }
         onNoteChange={handleNoteChange}
         onSave={handleSaveNotes}
       />
