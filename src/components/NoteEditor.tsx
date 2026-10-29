@@ -20,31 +20,34 @@ export function NoteEditor({
   onSave,
 }: NoteEditorProps) {
   return (
-    <section className="notes">
-        <h2>我的笔记</h2>
-        <p>
-          当前资料:{documentTitle ?? '未选择资料'}
-        </p>
-        {loadError && <p role="alert">{loadError}</p>}
-        <textarea
-          className="note-editor"
-          aria-label="我的笔记"
-          placeholder="记录你对这份资料的理解、重点和疑问 "
-          value={note}
-          disabled={editDisabled}
-          onChange={(event) => {
-            onNoteChange(event.target.value)
-          }}
-        />
-        <p>已输入 {note.length} 个字符</p> 
-        <button 
-          type="button" 
-          onClick={onSave} 
-          disabled={saveDisabled }
-        >
-          保存全部笔记
-        </button>
-        <p role="status">{saveMessage}</p>
+    <section className="workspace-column">
+        <h2 className="column-title">我的笔记</h2>
+
+        <div className="panel notes">
+            <p>
+            当前资料:{documentTitle ?? '未选择资料'}
+            </p>
+            {loadError && <p role="alert">{loadError}</p>}
+            <textarea
+            className="note-editor"
+            aria-label="我的笔记"
+            placeholder="记录你对这份资料的理解、重点和疑问 "
+            value={note}
+            disabled={editDisabled}
+            onChange={(event) => {
+                onNoteChange(event.target.value)
+            }}
+            />
+            <p>已输入 {note.length} 个字符</p> 
+            <button 
+            type="button" 
+            onClick={onSave} 
+            disabled={saveDisabled }
+            >
+            保存全部资料与笔记
+            </button>
+            <p role="status">{saveMessage}</p>
+            </div>    
       </section> 
   );
 }

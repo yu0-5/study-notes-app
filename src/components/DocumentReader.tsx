@@ -6,8 +6,14 @@ type DocumentReaderProps = {
 
 export function DocumentReader({ document }: DocumentReaderProps) {
   return (
-    <main className="reader">
-      <h2>{document ? document.title : '请选择资料'}</h2>
-        <p className = "reader-content">{document ? document.content : '点击左侧资料查看正文'}</p  >
+    <main className="workspace-column">
+        <h2 className = "column-title">资料阅读</h2>
+
+        <div className="panel reader">
+            <h3>{document ? document.title : '请选择资料'}</h3>
+            <p className = "reader-content">
+                {document ? document.content : '点击左侧资料查看正文'}
+            </p>
+        </div>  
     </main>)
 }

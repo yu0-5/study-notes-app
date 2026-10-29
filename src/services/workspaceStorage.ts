@@ -1,3 +1,4 @@
+import { DEFAULT_PROJECT_ID} from '../data/initialProjects';
 import type { StudyDocument } from '../types/document';
 import { initialDocuments } from '../data/initialDocuments';
 
@@ -77,7 +78,13 @@ export function loadWorkspace(): WorkspaceLoadResult {
           typeof doc.id === 'string' &&
           doc.id.trim() !== '' &&
           typeof doc.title === 'string' &&
-          typeof doc.content === 'string'
+          typeof doc.content === 'string'&&
+          (
+            doc.projectId === undefined ||
+            (typeof doc.projectId === 'string' && 
+              doc.projectId.trim() !== ''
+            )
+          )
       ) ||
       !isRecord(parsed.notes) ||
       !Object.values(parsed.notes).every((value) => typeof value === 'string')
@@ -85,7 +92,14 @@ export function loadWorkspace(): WorkspaceLoadResult {
       throw new Error('保存的工作台数据格式有误');
     }
 
-    const savedDocuments = parsed.documents as StudyDocument[];
+    const savedDocuments: StudyDocument[] = parsed.documents.map(
+      (doc) => ({
+        id: doc.id,
+        projectId: doc.projectId ?? DEFAULT_PROJECT_ID,
+        title: doc.title,
+        content: doc.content,
+  })
+);
     const ids = savedDocuments.map((doc) => doc.id);
 
     if (new Set(ids).size !== ids.length) {
