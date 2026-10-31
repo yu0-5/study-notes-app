@@ -122,3 +122,144 @@
   color: #b42318;
   background: #fee4e2;
 }
+
+.note-mode-switch{
+  display:flex;
+  gap:8px;
+  margin:12px 0;
+}
+
+.note-mode-switch button{
+  padding: 6px 12px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:transparent;
+  color:inherit;
+  cursor:pointer;
+}
+
+.note-mode-switch button[aria-pressed="true"] {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.markdown-preview {
+  min-height: 300px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.markdown-preview :is(h1, h2, h3, h4, h5, h6) {
+  margin: 16px 0 8px;
+  font-size: 18px;
+  line-height: 1.4;
+  letter-spacing: normal;
+}
+
+.markdown-preview h1 {
+  font-size: 24px;
+}
+
+.markdown-preview h2 {
+  font-size: 21px;
+}
+
+.markdown-preview p {
+  margin: 8px 0;
+}
+
+.markdown-preview pre {
+  padding: 12px;
+  overflow-x: auto;
+  background: var(--code-bg);
+  border-radius: 6px;
+}
+
+.markdown-preview code {
+  display: inline;
+  font-family: var(--mono);
+}
+
+.markdown-preview pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.markdown-preview blockquote {
+  margin: 12px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--accent-border);
+}
+
+.learning-preferences {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.learning-preferences label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.learning-preferences select {
+  min-width: 0;
+  width: 100%;
+  padding: 6px;
+  font: inherit;
+}
+
+.generation-range {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.range-mode-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.range-mode-switch button {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.range-mode-switch button[aria-pressed="true"] {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.generation-range label {
+  display: block;
+}
+
+.source-selection {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 180px;
+  margin-top: 8px;
+  font: inherit;
+}
+
+.source-preview {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
