@@ -85,6 +85,11 @@ export function loadWorkspace(): WorkspaceLoadResult {
               doc.projectId.trim() !== ''
             )
           )
+          &&(
+            doc.format === undefined ||
+            doc.format === 'text' ||
+            doc.format === 'markdown'
+          )
       ) ||
       !isRecord(parsed.notes) ||
       !Object.values(parsed.notes).every((value) => typeof value === 'string')
@@ -98,6 +103,8 @@ export function loadWorkspace(): WorkspaceLoadResult {
         projectId: doc.projectId ?? DEFAULT_PROJECT_ID,
         title: doc.title,
         content: doc.content,
+        format:doc.format ?? 'text'
+
   })
 );
     const ids = savedDocuments.map((doc) => doc.id);

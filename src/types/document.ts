@@ -8,5 +8,6 @@ export type StudyDocument = {
   id: string;
   projectId: string;
   title: string;
+  format: 'text' | 'markdown';
   content: string;
 };

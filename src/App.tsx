@@ -14,6 +14,10 @@ import {
   DEFAULT_PROJECT_ID,
   initialProjects,
  } from './data/initialProjects';
+import type { GenerationRange, LearningPreferences, GenerationInputSnapshot } from './types/generation';
+import { LearningPreferencesForm } from './components/LearningPreferencesForm';
+import { GenerationRangePicker } from './components/GenerationRangePicker';
+import { getGenerationSource, normalizeSourceText } from './utils/generationRange';
 
  //用于比较的快照函数
  function createWorkspaceSnapshot(
@@ -25,6 +29,7 @@ import {
     .filter(([,content]) =>content !=='')
     .sort(([idA], [idB]) => idA.localeCompare(idB))
   );
+
   return JSON.stringify({
     documents,
     notes: normalizedNotes,
@@ -56,7 +61,7 @@ function App() {
   );
   const hasUnsavedChanges = 
     !loadError && currentSnapshot !== savedSnapshot;
-
+  
   
   const [saveMessage, setSaveMessage] = useState('');
   const [importMessage, setImportMessage] = useState('');
@@ -64,6 +69,62 @@ function App() {
   const selectedDocument = documents.find((doc) => doc.id === selectedId);
   const note = notesById[selectedId] ?? '';
   const [searchQuery, setSearchQuery] = useState('');
+  const [generationRange, setGenerationRange] =
+    useState<GenerationRange | null>(null);
+  const [preferences, setPreferences] = 
+    useState<LearningPreferences>({
+    goal: 'understand',
+    level: 'beginner',
+    detail: 'concise',
+  });
+
+  const activeRange = generationRange?.documentId === selectedDocument?.id
+    ? generationRange
+    : null;
+  const generationSource = getGenerationSource(selectedDocument, activeRange);
+  const [preparedInput,setPreparedInput] = useState<GenerationInputSnapshot | null>(null);
+
+  //确认函数
+  // 生成前置校验：拦截无效状态，确定生成范围，并打包当前数据快照。
+  function handlePrepareGenerationInput(){
+    if (
+      loadError ||
+      isReadingFile ||
+      !selectedDocument ||
+      generationSource.error
+    ) {
+      return;
+    }
+
+    const range: GenerationRange = 
+      activeRange?.mode === 'selection'
+      ?{...activeRange}
+      :{
+        documentId:selectedDocument.id,
+        mode:'whole',
+        start:0,
+        end:normalizeSourceText(selectedDocument.content).length,
+      };
+    const snapshot: GenerationInputSnapshot = {
+      requestId: crypto.randomUUID(),
+      documentId: selectedDocument.id,
+      documentTitle: selectedDocument.title,
+      sourceText: generationSource.text,
+      characterCount: generationSource.count,
+      range,
+      preferences:{...preferences},
+      createdAt: new Date().toISOString(),
+    };
+    setPreparedInput(snapshot);
+    };
+
+      
+ 
+  function handleSelectDocument(id: string) {
+    setSelectedId(id);
+    setGenerationRange(null);
+  }
+
   async function handleReadNotes(file: File){
     if(loadError){
       setImportMessage('读取异常尚未解决，暂时无法导入资料');
@@ -96,10 +157,12 @@ function App() {
         projectId: DEFAULT_PROJECT_ID,
         title: file.name.replace(/\.(txt|md)$/i, '').trim() || '未命名资料',
         content,
+        format:file.name.toLowerCase().endsWith('md') ? 'markdown' : 'text',
       };
       setDocuments((previousDocuments) => [newDocument, ...previousDocuments]);
 
       setSelectedId(newDocument.id);
+      setGenerationRange(null);
       setSearchQuery('');
       setSaveMessage('');
 
@@ -131,6 +194,7 @@ function App() {
   }
 }
 function handleNoteChange(content: string) {
+  
   if (loadError || !selectedDocument) {
     return;
   }
@@ -171,6 +235,10 @@ function handleDeleteDocument(id: string) {
 
   setDocuments(remainingDocuments);
 
+  if(preparedInput?.documentId === id){
+    setPreparedInput(null);
+  }
+
   setNotesById((previousNotes) => {
     const nextNotes = { ...previousNotes };
 
@@ -181,6 +249,7 @@ function handleDeleteDocument(id: string) {
 
   if (selectedId === id) {
     setSelectedId(remainingDocuments[0]?.id ?? '');
+    setGenerationRange(null);
     setSearchQuery('');
   }
 
@@ -239,7 +308,7 @@ return(
           selectedId={selectedId}
           importMessage={importMessage}
           importDisabled={isReadingFile || Boolean(loadError)}
-          onSelect={setSelectedId}
+          onSelect={handleSelectDocument}
           onImport={handleReadNotes}
           searchQuery={searchQuery}
           projects={initialProjects}
@@ -248,6 +317,85 @@ return(
 />
 
       <DocumentReader document={selectedDocument} />
+      <div className="workspace-column">
+        <GenerationRangePicker
+          document={selectedDocument}
+          range={activeRange}
+          disabled={Boolean(loadError) || isReadingFile}
+          onChange={setGenerationRange}
+        />
+        <p role="status">
+          已选 {generationSource.count} / {generationSource.limit} 个字符
+        </p>
+        {generationSource.error && (
+          <p role="alert">{generationSource.error}</p>
+        )}
+        <details>
+          <summary>查看本次选定原文</summary>
+          <pre className="source-preview">{generationSource.text}</pre>
+        </details>
+        <LearningPreferencesForm
+          preferences={preferences}
+          onChange={setPreferences}
+        />
+
+        <button
+          type="button"
+          disabled={
+            Boolean(loadError) ||
+            isReadingFile ||
+            Boolean(generationSource.error)
+          }
+          onClick={handlePrepareGenerationInput}
+        >
+          确认本次生成输入
+        </button>
+
+        {preparedInput && (
+          <details open>
+            <summary>最近一次确认输入</summary>
+
+            <p>来源：{preparedInput.documentTitle}</p>
+
+            <p>
+              范围：
+              {preparedInput.range.mode === 'whole'
+              ?'整篇资料'
+              :'选定片段'}
+            , 共{preparedInput.characterCount}个字符  
+
+            </p>
+
+            <p>
+              学习目标：
+              {{
+                understand: '理解',
+                review: '复习',
+                interview: '面试',
+              }[preparedInput.preferences.goal]}
+            </p>
+
+            <p>
+              当前基础：
+              {preparedInput.preferences.level === 'beginner'
+              ?'初次掌握'
+              :'已经学过'}
+            </p>
+
+            <p>
+              内容详略：
+              {preparedInput.preferences.detail === 'concise'
+              ?'简洁'
+              :'详细'}
+            </p>
+
+            <pre className="source-preview">
+              {preparedInput.sourceText}
+            </pre>
+
+            <p>修改来源或偏好后，请重新确认</p>
+          </details>
+        )}
       <NoteEditor
         documentTitle={selectedDocument?.title ?? '未选择资料'}
         note={note}
@@ -262,10 +410,12 @@ return(
         onNoteChange={handleNoteChange}
         onSave={handleSaveNotes}
       />
-      
+     </div> 
     </div>
   </div>
   )
 }  
 
 export default App
+
+
