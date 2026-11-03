@@ -9,6 +9,16 @@ import { MarkdownPreview } from './MarkdownPreview';
 type GenerationDraftPanelProps = {
   input: GenerationInputSnapshot;
   disabled: boolean;
+
+  onAdopt: (
+    draft: DemoDraft,
+    content: string,
+  )=> {
+    ok:boolean,
+    message:string,
+  };
+
+  onDirtyChange: (dirty: boolean) => void;
 };
 
 type DraftState =
@@ -20,13 +30,31 @@ type DraftState =
 export function GenerationDraftPanel({
   input,
   disabled,
+  onAdopt,
+  onDirtyChange,
 }: GenerationDraftPanelProps) {
   const [state, setState] = useState<DraftState>({
     status: 'idle',
   });
+  const [editedContent, setEditedContent] = useState('');
+  const [isAdopted, setIsAdopted] = useState(false);
+  const [adoptionMessage, setAdoptionMessage] = useState('');
 
   const controllerRef = useRef<AbortController | null>(null);
   const isGenerating = state.status === 'pending';
+  
+  const hasDraftEdits =
+    state.status === 'success' &&
+    !isAdopted &&
+    editedContent !== state.draft.content;
+
+  useEffect(() => {
+    onDirtyChange(hasDraftEdits);  
+
+    return () => {
+      onDirtyChange(false);
+    };
+  }, [hasDraftEdits , onDirtyChange]);
 
   useEffect(() => {
     return () => {
@@ -34,13 +62,34 @@ export function GenerationDraftPanel({
     };
   }, []);
 
+  function handleAdopt(){
+    if (state.status !== 'success' || disabled || isAdopted) {
+      return;
+    } 
+    const result = onAdopt(state.draft, editedContent);
+    
+    setAdoptionMessage(result.message );
+
+    if (result.ok) {
+      setIsAdopted(true);
+    } 
+  }
     async function handleGenerate() {
     if (disabled || controllerRef.current) {
       return;
     }
-
+    
+    if(
+      hasDraftEdits &&
+      !window.confirm('重新生成会放弃当前候选的修改，是否继续？')
+    ){
+      return;
+    }
     const controller = new AbortController();
     controllerRef.current = controller;
+    
+    setAdoptionMessage('');
+    setIsAdopted(false);
 
     setState({ status: 'pending' });
 
@@ -53,7 +102,8 @@ export function GenerationDraftPanel({
       if (controller.signal.aborted) {
         return;
       }
-
+      
+      setEditedContent(draft.content);
       setState({
         status: 'success',
         draft,
@@ -109,11 +159,45 @@ export function GenerationDraftPanel({
 
       {state.status === 'success' && (
         <>
-          <p role="status">
-            模拟草稿已生成，尚未加入我的笔记。
+          <p>
+            {isAdopted
+              ? '这份候选已追加到个人笔记'
+              : '请核对、修改候选，再决定是否追加'}
           </p>
 
-          <MarkdownPreview content={state.draft.content} />
+          <label>
+            编辑候选正文
+            <textarea
+              value={editedContent}
+              rows={12}
+              readOnly={isAdopted}
+              onChange={(event) => {
+                setEditedContent(event.target.value);
+                setAdoptionMessage('');
+              }}
+            />
+          </label>
+
+          <details>
+            <summary>预览编辑后的候选</summary>
+            <MarkdownPreview content={editedContent} />
+          </details>
+
+          <button
+            type="button"
+            disabled={
+              disabled ||
+              isAdopted ||
+              editedContent.trim() === ''
+            }
+            onClick={handleAdopt}
+          >
+            {isAdopted ? '已追加' : '确认追加到我的笔记'}
+          </button>
+
+          {adoptionMessage && (
+            <p role="status">{adoptionMessage}</p>
+          )}
         </>
       )}
     </section>
