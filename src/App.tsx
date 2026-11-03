@@ -18,7 +18,8 @@ import type { GenerationRange, LearningPreferences, GenerationInputSnapshot } fr
 import { LearningPreferencesForm } from './components/LearningPreferencesForm';
 import { GenerationRangePicker } from './components/GenerationRangePicker';
 import { getGenerationSource, normalizeSourceText } from './utils/generationRange';
-
+import { validateGenerationInput } from './services/generationApi';
+import { GenerationDraftPanel } from './components/GenerationDraftPanel';
  //用于比较的快照函数
  function createWorkspaceSnapshot(
   documents: StudyDocument[], 
@@ -36,6 +37,13 @@ import { getGenerationSource, normalizeSourceText } from './utils/generationRang
   });
 }
 
+//定义请求状态类型
+
+type InputValidationStatus = {
+  requestId: string;
+  status: 'pending' | 'success' | 'error';
+  message: string;
+}
 //建立页面状态
 function App() {
   const [loadResult] = useState(loadWorkspace);
@@ -76,13 +84,26 @@ function App() {
     goal: 'understand',
     level: 'beginner',
     detail: 'concise',
+
   });
+  const [validationState, setValidationState] =
+    useState<InputValidationStatus | null>(null);
+  
+  const isValidating = validationState?.status === 'pending';
+  
+  const [preparedInput,setPreparedInput] = useState<GenerationInputSnapshot | null>(null);
+
+  const visibleValidation =
+    validationState?.requestId === preparedInput?.requestId
+      ? validationState
+      : null;
+
 
   const activeRange = generationRange?.documentId === selectedDocument?.id
     ? generationRange
     : null;
   const generationSource = getGenerationSource(selectedDocument, activeRange);
-  const [preparedInput,setPreparedInput] = useState<GenerationInputSnapshot | null>(null);
+  
 
   //确认函数
   // 生成前置校验：拦截无效状态，确定生成范围，并打包当前数据快照。
@@ -90,6 +111,7 @@ function App() {
     if (
       loadError ||
       isReadingFile ||
+      isValidating ||
       !selectedDocument ||
       generationSource.error
     ) {
@@ -118,7 +140,44 @@ function App() {
     setPreparedInput(snapshot);
     };
 
-      
+  async function handleValidatePreparedInput() {
+    if(!preparedInput || isValidating || loadError){
+      return;
+    }
+
+    const input = preparedInput;
+
+    setValidationState({
+      requestId: input.requestId,
+      status: 'pending',
+      message: '正在检查生成输入...',
+    });
+
+    try{
+      const result = await validateGenerationInput(input);
+      setValidationState({
+        requestId: input.requestId,
+        status:  'success' ,
+        message: `检验通过,共 ${result.characterCount} 个字符`,
+      });
+    } catch (error) {
+      const message = 
+        error instanceof DOMException && error.name === 'TimeoutError'
+        ? '请求超时，请检查网络连接'
+        : error instanceof TypeError
+          ? '无法连接服务，请检查后端是否启动'
+          :error instanceof Error
+            ? error.message
+              : '输入校验失败，请重试';
+
+      setValidationState({
+        requestId: input.requestId,
+        status: 'error',
+        message: message,
+      });
+    }
+    
+  }    
  
   function handleSelectDocument(id: string) {
     setSelectedId(id);
@@ -344,6 +403,7 @@ return(
           disabled={
             Boolean(loadError) ||
             isReadingFile ||
+            isValidating ||
             Boolean(generationSource.error)
           }
           onClick={handlePrepareGenerationInput}
@@ -394,7 +454,39 @@ return(
             </pre>
 
             <p>修改来源或偏好后，请重新确认</p>
+            <button
+              type="button"
+              disabled={
+                Boolean(loadError) ||
+                isValidating
+              }
+              onClick={handleValidatePreparedInput}
+            >
+              {isValidating ? '正在验证...' : '验证输入'}
+            </button>
+
+            {visibleValidation && (
+              <p role ={
+                visibleValidation.status === 'error'
+                ? 'alert'
+                : 'status'
+              }>
+                {visibleValidation.message}
+              </p>
+            )}
+             
           </details>
+        )}
+        {preparedInput && (
+          <GenerationDraftPanel
+            key={preparedInput.requestId}
+            input={preparedInput}
+            disabled={
+              Boolean(loadError) ||
+              isReadingFile ||
+              isValidating
+            }
+          />
         )}
       <NoteEditor
         documentTitle={selectedDocument?.title ?? '未选择资料'}
