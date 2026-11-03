@@ -1,4 +1,4 @@
-import{useEffect, useState } from 'react'
+import{useEffect, useRef, useState } from 'react'
 import './App.css'
 import { validateTextFile } from './utils/textFile';
 import type { StudyDocument } from './types/document';
@@ -18,7 +18,10 @@ import type { GenerationRange, LearningPreferences, GenerationInputSnapshot } fr
 import { LearningPreferencesForm } from './components/LearningPreferencesForm';
 import { GenerationRangePicker } from './components/GenerationRangePicker';
 import { getGenerationSource, normalizeSourceText } from './utils/generationRange';
-import { validateGenerationInput } from './services/generationApi';
+import { 
+  validateGenerationInput,
+  type DemoDraft,
+ } from './services/generationApi';
 import { GenerationDraftPanel } from './components/GenerationDraftPanel';
  //用于比较的快照函数
  function createWorkspaceSnapshot(
@@ -92,6 +95,9 @@ function App() {
   const isValidating = validationState?.status === 'pending';
   
   const [preparedInput,setPreparedInput] = useState<GenerationInputSnapshot | null>(null);
+  
+  const adoptedDraftIdsRef = useRef(new Set<string>());//用于防重复记录的引用
+  const [hasCandidateEdits, setHasCandidateEdits] = useState(false);//表示是否有未保存修改的状态
 
   const visibleValidation =
     validationState?.requestId === preparedInput?.requestId
@@ -115,6 +121,13 @@ function App() {
       !selectedDocument ||
       generationSource.error
     ) {
+      return;
+    }
+    
+    if(
+      hasCandidateEdits &&
+      !window.confirm('重新确认输入会清除候选修改，是否继续？')
+    ){
       return;
     }
 
@@ -267,6 +280,78 @@ function handleNoteChange(content: string) {
 }
 const keyword = searchQuery.trim().toLowerCase();
 
+//处理用户点击“采纳（追加）草稿”到笔记的操作函数
+function handleAdoptDraft(draft: DemoDraft, content: string) {
+   if(loadError || isReadingFile){
+    return{
+      ok: false,
+      message: '当前暂时无法追加笔记',
+    };
+ }
+
+  if(
+    !preparedInput ||
+    draft.requestId !== preparedInput.requestId ||
+    draft.documentId !== preparedInput.documentId
+  ){
+    return{
+      ok: false,
+      message: '候选与当前确认的输入不匹配',
+    };
+  }
+
+  const sourceExists = documents.some(
+    (document) => document.id === draft.documentId,
+  );
+
+  if(!sourceExists || selectedId !== draft.documentId){
+    return{
+      ok: false,
+      message: '请先切回候选的来源资料，再追加笔记',
+    };
+  }
+
+  if(adoptedDraftIdsRef.current.has(draft.id)){
+    return{
+      ok: false,
+      message: '这份候选已经追加过了',
+    };
+  }
+
+  if(content.trim() === ''){
+    return{
+      ok: false,
+      message: '候选内容不能为空',
+    };
+  }
+
+  const existingNote = notesById[draft.documentId] ?? '';
+
+  const nextNote = existingNote.trim() === ''
+    ? existingNote + content
+    : `${existingNote}\n\n---\n\n${content}`;
+
+  if (Array.from(nextNote).length > 20000) {
+    return{
+      ok: false,
+      message: '追加后笔记超过 20000 个字符，请精简候选内容',
+    };
+  }
+
+  adoptedDraftIdsRef.current.add(draft.id);
+
+  setNotesById((previousNotes) => ({
+    ...previousNotes,
+    [draft.documentId]: nextNote,
+  }));
+
+  setSaveMessage('');
+
+  return{
+    ok: true,
+    message: '已追加到我的笔记，请点击保存',
+  };
+}  
 //删除处理函数
 function handleDeleteDocument(id: string) {
   if (loadError || isReadingFile) {
@@ -321,7 +406,7 @@ const visibleDocuments = documents.filter((doc) =>
 );
 
 useEffect(() => {
-  if(!hasUnsavedChanges){
+  if(!hasUnsavedChanges && !hasCandidateEdits){
     return;
   }
 
@@ -335,7 +420,7 @@ useEffect(() => {
   return () => {
     window.removeEventListener('beforeunload', handleBeforeUnload);
   };
-},[hasUnsavedChanges])
+},[hasUnsavedChanges, hasCandidateEdits]);
 
 return(
   <div>
@@ -486,6 +571,8 @@ return(
               isReadingFile ||
               isValidating
             }
+            onAdopt={handleAdoptDraft}
+            onDirtyChange={setHasCandidateEdits}
           />
         )}
       <NoteEditor
