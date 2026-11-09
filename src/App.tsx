@@ -20,7 +20,7 @@ import { GenerationRangePicker } from './components/GenerationRangePicker';
 import { getGenerationSource, normalizeSourceText } from './utils/generationRange';
 import { 
   validateGenerationInput,
-  type DemoDraft,
+  type GeneratedDraft,
  } from './services/generationApi';
 import { GenerationDraftPanel } from './components/GenerationDraftPanel';
  //用于比较的快照函数
@@ -281,7 +281,7 @@ function handleNoteChange(content: string) {
 const keyword = searchQuery.trim().toLowerCase();
 
 //处理用户点击“采纳（追加）草稿”到笔记的操作函数
-function handleAdoptDraft(draft: DemoDraft, content: string) {
+function handleAdoptDraft(draft: GeneratedDraft, content: string) {
    if(loadError || isReadingFile){
     return{
       ok: false,

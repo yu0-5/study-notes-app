@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GenerationInputSnapshot } from '../types/generation';
 import {
-  generateDemoDraft,
-  type DemoDraft,
+  generateDraft,
+  type GeneratedDraft,
+  type GenerationMode,
 } from '../services/generationApi';
 import { MarkdownPreview } from './MarkdownPreview';
 
@@ -11,11 +12,11 @@ type GenerationDraftPanelProps = {
   disabled: boolean;
 
   onAdopt: (
-    draft: DemoDraft,
+    draft: GeneratedDraft,
     content: string,
-  )=> {
-    ok:boolean,
-    message:string,
+  ) => {
+    ok: boolean;
+    message: string;
   };
 
   onDirtyChange: (dirty: boolean) => void;
@@ -24,7 +25,7 @@ type GenerationDraftPanelProps = {
 type DraftState =
   | { status: 'idle' }
   | { status: 'pending' }
-  | { status: 'success'; draft: DemoDraft }
+  | { status: 'success'; draft: GeneratedDraft }
   | { status: 'error'; message: string };
 
 export function GenerationDraftPanel({
@@ -39,6 +40,7 @@ export function GenerationDraftPanel({
   const [editedContent, setEditedContent] = useState('');
   const [isAdopted, setIsAdopted] = useState(false);
   const [adoptionMessage, setAdoptionMessage] = useState('');
+  const [mode, setMode] = useState<GenerationMode>('demo');
 
   const controllerRef = useRef<AbortController | null>(null);
   const isGenerating = state.status === 'pending';
@@ -47,7 +49,6 @@ export function GenerationDraftPanel({
     state.status === 'success' &&
     !isAdopted &&
     editedContent !== state.draft.content;
-
   useEffect(() => {
     onDirtyChange(hasDraftEdits);  
 
@@ -74,7 +75,7 @@ export function GenerationDraftPanel({
       setIsAdopted(true);
     } 
   }
-    async function handleGenerate() {
+  async function handleGenerate() {
     if (disabled || controllerRef.current) {
       return;
     }
@@ -94,8 +95,9 @@ export function GenerationDraftPanel({
     setState({ status: 'pending' });
 
     try {
-      const draft = await generateDemoDraft(
+      const draft = await generateDraft(
         input,
+        mode,
         controller.signal,
       );
 
@@ -138,7 +140,29 @@ export function GenerationDraftPanel({
     <section aria-label="候选笔记">
       <h2>候选笔记</h2>
 
-      <p>模拟模式：尚未调用 AI。</p>
+      <label>
+        生成方式
+        <select
+          value={mode}
+          disabled={disabled || isGenerating}
+          onChange={(event) => {
+            const nextMode = event.target.value;
+
+            if (nextMode === 'demo' || nextMode === 'ai') {
+              setMode(nextMode);
+            }
+          }}
+        >
+          <option value="demo">模拟生成</option>
+          <option value="ai">DeepSeek 真实生成</option>
+        </select>
+      </label>
+
+      <p>
+        {mode === 'ai'
+          ? '真实生成会将本次确认的资料范围发送给 DeepSeek，并消耗 API 额度。'
+          : '模拟生成使用固定模板，不调用模型。'}
+      </p>
       <p>输入来源：{input.documentTitle}</p>
 
       <button
@@ -146,7 +170,11 @@ export function GenerationDraftPanel({
         disabled={disabled || isGenerating}
         onClick={handleGenerate}
       >
-        {isGenerating ? '正在生成……' : '生成模拟草稿'}
+        {isGenerating
+          ? '正在生成……'
+          : mode === 'ai'
+            ? '生成 AI 草稿'
+            : '生成模拟草稿'}
       </button>
 
       {state.status === 'pending' && (
@@ -159,6 +187,12 @@ export function GenerationDraftPanel({
 
       {state.status === 'success' && (
         <>
+          <p>
+            本次结果：
+            {state.draft.mode === 'ai'
+              ? `DeepSeek 生成，模型：${state.draft.model}`
+              : '模拟模板'}
+          </p>
           <p>
             {isAdopted
               ? '这份候选已追加到个人笔记'

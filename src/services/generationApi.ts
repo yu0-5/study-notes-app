@@ -57,25 +57,44 @@ export async function validateGenerationInput(
   return result.data;
 }  
 
-const demoDraftSchema = z.object({
+const draftBaseSchema = z.object({
   id: z.uuid(),
   requestId: z.uuid(),
   documentId: z.string().min(1),
   status: z.literal('completed'),
-  mode: z.literal('demo'),
   content: z.string().refine(
     (content) => content.trim() !== '',
     { message: '候选正文不能为空' },
   ),
 });
 
-export type DemoDraft = z.infer<typeof demoDraftSchema>;
+const generatedDraftSchema = z.discriminatedUnion('mode', [
+  draftBaseSchema.extend({
+    mode: z.literal('demo'),
+  }),
+  draftBaseSchema.extend({
+    mode: z.literal('ai'),
+    model: z.string().min(1),
+  }),
+]);
 
-export async function generateDemoDraft(
+export type GenerationMode = 'demo' | 'ai';
+
+export type GeneratedDraft =
+  z.infer<typeof generatedDraftSchema>;
+
+export async function generateDraft(
   input: GenerationInputSnapshot,
+  mode: GenerationMode,
   signal: AbortSignal,
-): Promise<DemoDraft> {
-  const response = await fetch('/api/demo/generations', {
+): Promise<GeneratedDraft> {
+  const path = mode === 'ai'
+    ? '/api/generations'
+    : '/api/demo/generations';
+
+  const timeout = mode === 'ai' ? 130000 : 15000;
+
+  const response = await fetch(path, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -83,7 +102,7 @@ export async function generateDemoDraft(
     body: JSON.stringify(input),
     signal: AbortSignal.any([
       signal,
-      AbortSignal.timeout(15000),
+      AbortSignal.timeout(timeout),
     ]),
   });
 
@@ -108,7 +127,7 @@ export async function generateDemoDraft(
     );
   }
 
-  const result = demoDraftSchema.safeParse(body);
+  const result = generatedDraftSchema.safeParse(body);
 
   if (!result.success) {
     throw new Error('候选数据格式异常');
@@ -116,9 +135,10 @@ export async function generateDemoDraft(
 
   if (
     result.data.requestId !== input.requestId ||
-    result.data.documentId !== input.documentId
+    result.data.documentId !== input.documentId ||
+    result.data.mode !== mode
   ) {
-    throw new Error('候选结果与本次输入不匹配');
+    throw new Error('候选结果与本次请求不匹配');
   }
 
   return result.data;
