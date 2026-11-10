@@ -2,6 +2,9 @@ import { env } from 'node:process';
 import { z } from 'zod';
 import type { GenerationInput } from '../validators/generationInput.js';
 import { buildGenerationPrompt } from './generationPrompt.js';
+import {
+  createDeepSeekStreamParser,
+} from './deepSeekStreamParser.js';
 
 const modelConfigSchema = z.object({
   MODEL_API_KEY: z.string().trim().min(1),
@@ -19,10 +22,11 @@ const completionSchema = z.object({
   })).min(1),
 });
 
-export async function generateDeepSeekDraft(
-    input: GenerationInput,
-    signal: AbortSignal,
-):Promise<{ content:string; model:string}> {
+async function requestDeepSeek(
+  input: GenerationInput,
+  signal: AbortSignal,
+  stream: boolean,
+): Promise<Response>  {
     const configResult = modelConfigSchema.safeParse({
         MODEL_API_KEY: env.MODEL_API_KEY,
         MODEL_BASE_URL: env.MODEL_BASE_URL,
@@ -51,7 +55,7 @@ export async function generateDeepSeekDraft(
                     { role: 'user', content: prompt.user},
                 ],
                 thinking:{ type: 'disabled' },
-                stream: false,
+                stream,
                 max_tokens: 3000,
             }),
             signal: AbortSignal.any([
@@ -76,7 +80,18 @@ export async function generateDeepSeekDraft(
 
     throw new Error(`DeepSeek 请求失败，HTTP ${response.status}`);
   }
+    return response;
+  }
 
+  export async function generateDeepSeekDraft(
+    input: GenerationInput,
+    signal: AbortSignal,
+  ): Promise<{ content: string; model: string }> {
+    const response = await requestDeepSeek(
+      input,
+      signal,
+      false,
+    );
   const body: unknown = await response.json();
   const result = completionSchema.safeParse(body);
 
@@ -110,3 +125,96 @@ export async function generateDeepSeekDraft(
   };
 }
 
+type DeepSeekStreamEvent =
+  | {
+      type: 'delta';
+      text: string;
+    }
+  | {
+      type: 'done';
+      model: string;
+      content: string;
+    };
+
+export async function* generateDeepSeekDraftStream(
+  input: GenerationInput,
+  signal: AbortSignal,
+): AsyncGenerator<DeepSeekStreamEvent, void, unknown> {
+  const streamSignal = AbortSignal.any([
+    signal,
+    AbortSignal.timeout(120000),
+  ]);
+
+  const response = await requestDeepSeek(
+    input,
+    streamSignal,
+    true,
+  );
+
+  const contentType =
+    response.headers.get('content-type') ?? '';
+
+  if (
+    !response.body ||
+    !contentType.toLowerCase().startsWith('text/event-stream')
+  ) {
+    await response.body?.cancel();
+
+    throw new Error('模型没有返回预期的 SSE 数据流');
+  }
+
+  const reader = response.body.getReader();
+  const pendingDeltas: string[] = [];
+
+  const parser = createDeepSeekStreamParser((text) => {
+    pendingDeltas.push(text);
+  });
+
+  try {
+    while (true) {
+      streamSignal.throwIfAborted();
+
+      const { done, value } = await reader.read();
+
+      streamSignal.throwIfAborted();
+
+      if (done) {
+        break;
+      }
+
+      parser.push(value);
+
+      for (const text of pendingDeltas) {
+        streamSignal.throwIfAborted();
+
+        yield {
+          type: 'delta',
+          text,
+        };
+      }
+
+      pendingDeltas.length = 0;
+    }
+
+    const result = parser.finish();
+
+    streamSignal.throwIfAborted();
+
+    yield {
+      type: 'done',
+      model: result.model,
+      content: result.content,
+    };
+  } catch (error) {
+    streamSignal.throwIfAborted();
+    throw error;
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // 请求取消或连接异常时，流可能已经关闭
+    }
+
+    reader.releaseLock();
+  }
+}
