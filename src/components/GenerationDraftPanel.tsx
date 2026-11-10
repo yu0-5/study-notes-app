@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { GenerationInputSnapshot } from '../types/generation';
 import {
   generateDraft,
+  generateDraftStream,
   type GeneratedDraft,
   type GenerationMode,
 } from '../services/generationApi';
@@ -42,7 +43,7 @@ export function GenerationDraftPanel({
   const [isAdopted, setIsAdopted] = useState(false);
   const [adoptionMessage, setAdoptionMessage] = useState('');
   const [mode, setMode] = useState<GenerationMode>('demo');
-
+  const [streamingContent, setStreamingContent] = useState('');
   const controllerRef = useRef<AbortController | null>(null);
   const isGenerating = state.status === 'pending';
   
@@ -106,15 +107,28 @@ export function GenerationDraftPanel({
     
     setAdoptionMessage('');
     setIsAdopted(false);
+    setStreamingContent('');
 
     setState({ status: 'pending' });
 
     try {
-      const draft = await generateDraft(
-        input,
-        mode,
-        controller.signal,
-      );
+      const draft = mode === 'ai'
+        ? await generateDraftStream(
+            input,
+            controller.signal,
+            (text) => {
+              if (!controller.signal.aborted) {
+                setStreamingContent(
+                  (previous) => previous + text,
+                );
+              }
+            },
+          )
+        : await generateDraft(
+            input,
+            'demo',
+            controller.signal,
+          );
 
       if (controller.signal.aborted) {
         return;
@@ -206,8 +220,26 @@ export function GenerationDraftPanel({
         </div>
         
       )}
+      {streamingContent !== '' &&
+        (
+          state.status === 'pending' ||
+          state.status === 'cancelled' ||
+          state.status === 'error'
+        ) && (
+          <div>
+            <p>
+              {state.status === 'pending'
+                ? '正在接收生成正文……'
+                : '以下内容尚未完整生成，暂不能追加到笔记。'}
+            </p>
+
+            <pre className="source-preview">
+              {streamingContent}
+            </pre>
+          </div>
+        )}
       {state.status === 'cancelled' && (
-        <p role="alert">已停止本次生产，可以重新生成</p>
+        <p role="alert">已停止本次生成，可以重新生成</p>
       )}
       {state.status === 'error' && (
         <p role="alert">{state.message}</p>

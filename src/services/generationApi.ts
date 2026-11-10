@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GenerationInputSnapshot } from "../types/generation";
+import { createSseParser } from '../../shared/sse';
 
 const validationResponseSchema = z.object({
   requestId: z.string(),
@@ -142,4 +143,209 @@ export async function generateDraft(
   }
 
   return result.data;
+}
+
+//校验输入
+const streamIdentitySchema = z.object({
+  id: z.uuid(),
+  requestId: z.uuid(),
+  documentId: z.string().min(1),
+  mode: z.literal('ai'),
+});
+
+const streamEventSchema = z.discriminatedUnion('event', [
+  z.object({
+    event: z.literal('start'),
+    data: streamIdentitySchema,
+  }),
+
+  z.object({
+    event: z.literal('delta'),
+    data: streamIdentitySchema.extend({
+      text: z.string(),
+    }),
+  }),
+
+  z.object({
+    event: z.literal('done'),
+    data: generatedDraftSchema,
+  }),
+
+  z.object({
+    event: z.literal('error'),
+    data: streamIdentitySchema.extend({
+      code: z.string(),
+      message: z.string(),
+    }),
+  }),
+]);
+
+//增加前端流失请求函数
+export async function generateDraftStream(
+  input: GenerationInputSnapshot,
+  signal: AbortSignal,
+  onDelta: (text: string) => void,
+): Promise<GeneratedDraft> {
+  const requestSignal = AbortSignal.any([
+    signal,
+    AbortSignal.timeout(130000),
+  ]);
+
+  const response = await fetch('/api/generations/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+    signal: requestSignal,
+  });
+
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => {
+      requestSignal.throwIfAborted();
+      return null;
+    });
+
+    const error = errorResponseSchema.safeParse(body);
+
+    throw new Error(
+      error.success
+        ? error.data.issues?.[0]?.message ?? error.data.message
+        : `流式生成失败，HTTP ${response.status}`,
+    );
+  }
+
+  const contentType =
+    response.headers.get('content-type') ?? '';
+
+  if (
+    !response.body ||
+    !contentType.toLowerCase().startsWith('text/event-stream')
+  ) {
+    await response.body?.cancel();
+
+    throw new Error('服务没有返回预期的 SSE 数据流');
+  }
+
+  const reader = response.body.getReader();
+
+  let candidateId: string | null = null;
+  let assembledContent = '';
+  let completedDraft: GeneratedDraft | null = null;
+
+  const parser = createSseParser((message) => {
+    requestSignal.throwIfAborted();
+
+    if (completedDraft !== null) {
+      throw new Error('候选完成后仍收到额外消息');
+    }
+
+    let body: unknown;
+
+    try {
+      body = JSON.parse(message.data);
+    } catch {
+      throw new Error('流消息中包含无效 JSON');
+    }
+
+    const result = streamEventSchema.safeParse({
+      event: message.event,
+      data: body,
+    });
+
+    if (!result.success) {
+      throw new Error('流消息格式异常');
+    }
+
+    const event = result.data;
+
+    if (
+      event.data.mode !== 'ai' ||
+      event.data.requestId !== input.requestId ||
+      event.data.documentId !== input.documentId
+    ) {
+      throw new Error('流消息与本次请求不匹配');
+    }
+
+    if (event.event === 'start') {
+      if (candidateId !== null) {
+        throw new Error('重复收到生成开始消息');
+      }
+
+      candidateId = event.data.id;
+      return;
+    }
+
+    if (
+      candidateId === null ||
+      event.data.id !== candidateId
+    ) {
+      throw new Error('流消息的候选标识不匹配');
+    }
+
+    switch (event.event) {
+      case 'delta': {
+        assembledContent += event.data.text;
+
+        if (Array.from(assembledContent).length > 20000) {
+          throw new Error('候选正文超过 20000 个字符');
+        }
+
+        if (event.data.text !== '') {
+          onDelta(event.data.text);
+        }
+
+        break;
+      }
+
+      case 'done': {
+        if (event.data.content !== assembledContent) {
+          throw new Error('完整候选与流式正文不一致');
+        }
+
+        completedDraft = event.data;
+        break;
+      }
+
+      case 'error': {
+        throw new Error(event.data.message);
+      }
+    }
+  });
+
+  try {
+    while (true) {
+      requestSignal.throwIfAborted();
+
+      const { done, value } = await reader.read();
+
+      requestSignal.throwIfAborted();
+
+      if (done) {
+        break;
+      }
+
+      parser.push(value);
+    }
+
+    parser.finish();
+    requestSignal.throwIfAborted();
+
+    if (completedDraft === null) {
+      throw new Error('连接已结束，但未收到完整候选');
+    }
+
+    return completedDraft;
+  } catch (error) {
+    requestSignal.throwIfAborted();
+    throw error;
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // 请求取消或连接异常时，流可能已经关闭
+    }
+
+    reader.releaseLock();
+  }
 }
