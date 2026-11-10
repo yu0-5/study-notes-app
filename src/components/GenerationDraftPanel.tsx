@@ -25,6 +25,7 @@ type GenerationDraftPanelProps = {
 type DraftState =
   | { status: 'idle' }
   | { status: 'pending' }
+  | { status: 'cancelled' }
   | { status: 'success'; draft: GeneratedDraft }
   | { status: 'error'; message: string };
 
@@ -74,6 +75,20 @@ export function GenerationDraftPanel({
     if (result.ok) {
       setIsAdopted(true);
     } 
+  }
+
+  function handleStopGeneration() {
+    const controller = controllerRef.current;
+
+    if (!controller) {
+      return;
+    }
+
+    controller.abort();
+
+    setState({
+      status: 'cancelled',
+    });
   }
   async function handleGenerate() {
     if (disabled || controllerRef.current) {
@@ -178,9 +193,22 @@ export function GenerationDraftPanel({
       </button>
 
       {state.status === 'pending' && (
-        <p role="status">正在等待候选结果……</p>
-      )}
+        <div>
+          <p role="status">正在等待候选结果……</p>
 
+          <button
+            type="button"
+            
+            onClick={handleStopGeneration}
+          >
+            停止生成
+          </button>
+        </div>
+        
+      )}
+      {state.status === 'cancelled' && (
+        <p role="alert">已停止本次生产，可以重新生成</p>
+      )}
       {state.status === 'error' && (
         <p role="alert">{state.message}</p>
       )}
