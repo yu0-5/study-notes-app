@@ -507,3 +507,62 @@
   gap: 12px;
   min-width: 0;
 }
+
+.workspace > .right-workspace {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.right-workspace-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.right-workspace-tabs button {
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.right-workspace-tabs button[aria-selected="true"] {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.right-workspace-tabs button:focus-visible,
+.right-workspace-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.right-workspace-panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.right-workspace-panel[hidden] {
+  display: none;
+}
+
+.right-workspace-panel > * {
+  flex-shrink: 0;
+}

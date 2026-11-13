@@ -20,6 +20,7 @@ import {
 import { GenerationDraftPanel } from './components/GenerationDraftPanel';
 import { HomePage } from './components/HomePage';
 import { GenerationInputPanel } from './components/GenerationInputPanel';
+import { RightWorkspace, type RightPanel } from './components/RightWorkspace';
 import { useWorkspace } from './hooks/useWorkspace';
 
 //建立页面状态
@@ -45,6 +46,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [view, setView] = useState<'home' | 'workspace'>('home');
+  const [activePanel, setActivePanel] = useState<RightPanel>('ai');
   const [generationRange, setGenerationRange] =
     useState<GenerationRange | null>(null);
   const [preferences, setPreferences] = 
@@ -172,6 +174,7 @@ function App() {
     setGenerationRange(null);
     setSearchQuery('');
     setIsLibraryOpen(false);
+    setActivePanel('ai');
     setView('workspace');
   }
 
@@ -248,6 +251,7 @@ function handleAdoptDraft(draft: GeneratedDraft, content: string) {
   }
 
   adoptedDraftIdsRef.current.add(draft.id);
+  setActivePanel('notes');
 
   return{
     ok: true,
@@ -427,56 +431,64 @@ useEffect(() => {
 />}
       </section>
       <DocumentReader document={selectedDocument} />
-      <div className="workspace-column assistant-column">
-        <GenerationInputPanel
-          document={selectedDocument}
-          range={activeRange}
-          source={generationSource}
-          preferences={preferences}
-          input={preparedInput}
-          validation={visibleValidation}
-          isValidating={isValidating}
-          rangeDisabled={Boolean(loadError) || isReadingFile}
-          prepareDisabled={
-            Boolean(loadError) ||
-            isReadingFile ||
-            isValidating ||
-            Boolean(generationSource.error)
-          }
-          validateDisabled={Boolean(loadError) || isValidating}
-          onRangeChange={setGenerationRange}
-          onPreferencesChange={setPreferences}
-          onPrepare={handlePrepareGenerationInput}
-          onValidate={handleValidatePreparedInput}
-        />
-        {preparedInput && (
-          <GenerationDraftPanel
-            key={preparedInput.requestId}
-            input={preparedInput}
-            disabled={
-              Boolean(loadError) ||
-              isReadingFile ||
-              isValidating
-            }
-            onAdopt={handleAdoptDraft}
-            onDirtyChange={setHasCandidateEdits}
-          />
-        )}
-      <NoteEditor
-        documentTitle={selectedDocument?.title ?? '未选择资料'}
-        note={note}
-        loadError={loadError}
-        editDisabled={Boolean(loadError) || !selectedDocument}
-        saveDisabled={Boolean(loadError) || isReadingFile}
-        saveMessage={
-          hasUnsavedChanges
-           ? `有修改尚未保存${saveMessage ?`; ${saveMessage}`:''}` 
-           : saveMessage
+      <RightWorkspace
+        activePanel={activePanel}
+        onPanelChange={setActivePanel}
+        aiPanel={
+          <>
+            <GenerationInputPanel
+              document={selectedDocument}
+              range={activeRange}
+              source={generationSource}
+              preferences={preferences}
+              input={preparedInput}
+              validation={visibleValidation}
+              isValidating={isValidating}
+              rangeDisabled={Boolean(loadError) || isReadingFile}
+              prepareDisabled={
+                Boolean(loadError) ||
+                isReadingFile ||
+                isValidating ||
+                Boolean(generationSource.error)
+              }
+              validateDisabled={Boolean(loadError) || isValidating}
+              onRangeChange={setGenerationRange}
+              onPreferencesChange={setPreferences}
+              onPrepare={handlePrepareGenerationInput}
+              onValidate={handleValidatePreparedInput}
+            />
+            {preparedInput && (
+              <GenerationDraftPanel
+                key={preparedInput.requestId}
+                input={preparedInput}
+                disabled={
+                  Boolean(loadError) ||
+                  isReadingFile ||
+                  isValidating
+                }
+                onAdopt={handleAdoptDraft}
+                onDirtyChange={setHasCandidateEdits}
+              />
+            )}
+          </>
         }
-        onNoteChange={handleNoteChange}
-        onSave={handleSaveNotes}
+        notesPanel={
+          <NoteEditor
+            documentTitle={selectedDocument?.title ?? '未选择资料'}
+            note={note}
+            loadError={loadError}
+            editDisabled={Boolean(loadError) || !selectedDocument}
+            saveDisabled={Boolean(loadError) || isReadingFile}
+            saveMessage={
+              hasUnsavedChanges
+                ? `有修改尚未保存${saveMessage ? `; ${saveMessage}` : ''}`
+                : saveMessage
+            }
+            onNoteChange={handleNoteChange}
+            onSave={handleSaveNotes}
+          />
+        }
       />
-          </div>
         </div>
       </div>
     </div>
