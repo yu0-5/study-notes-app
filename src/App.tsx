@@ -1,19 +1,10 @@
 import{useEffect, useRef, useState } from 'react'
 import './App.css'
-import { validateTextFile } from './utils/textFile';
-import type { StudyDocument } from './types/document';
-import {
-  loadWorkspace,
-  saveWorkspace,
-} from './services/workspaceStorage';
-
+import { initialProjects } from './data/initialProjects';
 import { DocumentReader } from './components/DocumentReader';
 import { DocumentSidebar } from './components/DocumentSidebar';
 import { NoteEditor } from './components/NoteEditor';
-import { 
-  DEFAULT_PROJECT_ID,
-  initialProjects,
- } from './data/initialProjects';
+
 import type {
   GenerationRange,
   LearningPreferences,
@@ -29,55 +20,28 @@ import {
 import { GenerationDraftPanel } from './components/GenerationDraftPanel';
 import { HomePage } from './components/HomePage';
 import { GenerationInputPanel } from './components/GenerationInputPanel';
- //用于比较的快照函数
- function createWorkspaceSnapshot(
-  documents: StudyDocument[], 
-  notes: Record<string, string>
-): string {
-  const normalizedNotes = Object.fromEntries(
-    Object.entries(notes)
-    .filter(([,content]) =>content !=='')
-    .sort(([idA], [idB]) => idA.localeCompare(idB))
-  );
-
-  return JSON.stringify({
-    documents,
-    notes: normalizedNotes,
-  });
-}
+import { useWorkspace } from './hooks/useWorkspace';
 
 //建立页面状态
 function App() {
-  const [loadResult] = useState(loadWorkspace);
-  const [savedSnapshot, setSavedSnapshot] = useState(() => 
-    createWorkspaceSnapshot(loadResult.documents, loadResult.notes)
-  );
-  
-
-  const [documents, setDocuments] =
-    useState<StudyDocument[]>(loadResult.documents);
-
-  const [selectedId, setSelectedId] =
-    useState(loadResult.documents[0]?.id ?? '');
-
-  const [notesById, setNotesById] =
-    useState<Record<string, string>>(loadResult.notes);
-  
-  const loadError = loadResult.error;
-
-  const currentSnapshot = createWorkspaceSnapshot(
+  const {
     documents,
-    notesById
-  );
-  const hasUnsavedChanges = 
-    !loadError && currentSnapshot !== savedSnapshot;
-  
-  
-  const [saveMessage, setSaveMessage] = useState('');
-  const [importMessage, setImportMessage] = useState('');
-  const [isReadingFile, setIsReadingFile] = useState(false);
-  const selectedDocument = documents.find((doc) => doc.id === selectedId);
-  const note = notesById[selectedId] ?? '';
+    selectedId,
+    notesById,
+    selectedDocument,
+    note,
+    loadError,
+    saveMessage,
+    importMessage,
+    isReadingFile,
+    hasUnsavedChanges,
+    selectDocument,
+    importDocument,
+    updateDocumentNote,
+    deleteDocument,
+    saveNotes: handleSaveNotes,
+  } = useWorkspace();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [view, setView] = useState<'home' | 'workspace'>('home');
@@ -194,93 +158,26 @@ function App() {
   }    
  
   function handleSelectDocument(id: string) {
-    setSelectedId(id);
+    selectDocument(id);
     setGenerationRange(null);
   }
 
-  async function handleReadNotes(file: File){
-    if(loadError){
-      setImportMessage('读取异常尚未解决，暂时无法导入资料');
+  async function handleReadNotes(file: File) {
+    const imported = await importDocument(file);
+
+    if (!imported) {
       return;
     }
-    const errorMessage = validateTextFile(file);
-    if(errorMessage){
-      setImportMessage(errorMessage);
-      return;
-    }
-    setIsReadingFile(true);
-    setImportMessage('正在读取并检查文件...');
-    try{
-      const buffer = await file.arrayBuffer();
-      const decoder = new TextDecoder('utf-8',{
-        fatal: true,
-      });
-      const content = decoder.decode(buffer);
 
-      if(content.includes('\u0000')){
-        setImportMessage('文件包含异常内容,请选择正常的文本文件');
-        return;
-      }
-      if(content.trim() === ''){
-        setImportMessage('文件内容为空,请选择包含正文的文件');
-        return;
-      }
-      const newDocument: StudyDocument = {
-        id: crypto.randomUUID(),
-        projectId: DEFAULT_PROJECT_ID,
-        title: file.name.replace(/\.(txt|md)$/i, '').trim() || '未命名资料',
-        content,
-        format:file.name.toLowerCase().endsWith('md') ? 'markdown' : 'text',
-      };
-      setDocuments((previousDocuments) => [newDocument, ...previousDocuments]);
-
-      setSelectedId(newDocument.id);
-      setGenerationRange(null);
-      setSearchQuery('');
-      setSaveMessage('');
-
-      setImportMessage(`已导入:${newDocument.title}`);
-      setIsLibraryOpen(false);
-      setView('workspace');
-    } catch (error) {
-      console.error('读取文件失败', error);
-      setImportMessage('读取文件失败，请检查文件格式或内容');
-    } finally {
-      setIsReadingFile(false);
-    }
-  };
-
-  function handleSaveNotes() {
-  if (loadError) {
-    setSaveMessage('读取异常尚未解决，暂时无法保存笔记');
-    return;
-  }
-  if(isReadingFile){
-    setSaveMessage('正在读取文件，请稍后保存笔记');
-    return;
-  }
-  try {
-    saveWorkspace(documents, notesById);
-    setSavedSnapshot(currentSnapshot);
-    setSaveMessage('全部笔记已保存到当前浏览器');
-  } catch(error) {
-    console.error('保存笔记失败', error);
-    setSaveMessage('保存失败，修改仍保留在当前页面，请稍后重试');
-  }
-}
-function handleNoteChange(content: string) {
-  
-  if (loadError || !selectedDocument) {
-    return;
+    setGenerationRange(null);
+    setSearchQuery('');
+    setIsLibraryOpen(false);
+    setView('workspace');
   }
 
-  setNotesById((previousNotes) => ({
-    ...previousNotes,
-    [selectedId]: content,
-  }));
-  setSaveMessage('');
-  
-}
+  function handleNoteChange(content: string) {
+    updateDocumentNote(selectedId, content);
+  }
 const keyword = searchQuery.trim().toLowerCase();
 
 //处理用户点击“采纳（追加）草稿”到笔记的操作函数
@@ -341,14 +238,16 @@ function handleAdoptDraft(draft: GeneratedDraft, content: string) {
     };
   }
 
+  const updated = updateDocumentNote(draft.documentId, nextNote);
+
+  if (!updated) {
+    return {
+      ok: false,
+      message: '当前暂时无法追加笔记',
+    };
+  }
+
   adoptedDraftIdsRef.current.add(draft.id);
-
-  setNotesById((previousNotes) => ({
-    ...previousNotes,
-    [draft.documentId]: nextNote,
-  }));
-
-  setSaveMessage('');
 
   return{
     ok: true,
@@ -376,32 +275,20 @@ function handleDeleteDocument(id: string) {
     return;
   }
 
-  const remainingDocuments = documents.filter(
-    (doc) => doc.id !== id
-  );
+  const deleted = deleteDocument(id);
 
-  setDocuments(remainingDocuments);
+  if (!deleted) {
+    return;
+  }
 
   if(preparedInput?.documentId === id){
     setPreparedInput(null);
   }
 
-  setNotesById((previousNotes) => {
-    const nextNotes = { ...previousNotes };
-
-    delete nextNotes[id];
-
-    return nextNotes;
-  });
-
   if (selectedId === id) {
-    setSelectedId(remainingDocuments[0]?.id ?? '');
     setGenerationRange(null);
     setSearchQuery('');
   }
-
-  setImportMessage('');
-  setSaveMessage('');
 }
 
 const visibleDocuments = documents.filter((doc) =>
@@ -539,8 +426,6 @@ useEffect(() => {
           onDelete={handleDeleteDocument}
 />}
       </section>
-
-
       <DocumentReader document={selectedDocument} />
       <div className="workspace-column assistant-column">
         <GenerationInputPanel
@@ -597,7 +482,4 @@ useEffect(() => {
     </div>
   );
 }
-
 export default App;
-
-
