@@ -22,3 +22,9 @@ export type GenerationInputSnapshot = {
     preferences: LearningPreferences;
     createdAt:string;
 }
+
+export type InputValidationStatus = {
+  requestId: string;
+  status: 'pending' | 'success' | 'error';
+  message: string;
+};

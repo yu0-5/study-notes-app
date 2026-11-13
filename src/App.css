@@ -500,3 +500,10 @@
 .home-document:hover {
   border-color: var(--accent-border);
 }
+
+.generation-input-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}

@@ -14,9 +14,13 @@ import {
   DEFAULT_PROJECT_ID,
   initialProjects,
  } from './data/initialProjects';
-import type { GenerationRange, LearningPreferences, GenerationInputSnapshot } from './types/generation';
-import { LearningPreferencesForm } from './components/LearningPreferencesForm';
-import { GenerationRangePicker } from './components/GenerationRangePicker';
+import type {
+  GenerationRange,
+  LearningPreferences,
+  GenerationInputSnapshot,
+  InputValidationStatus,
+ } from './types/generation';
+
 import { getGenerationSource, normalizeSourceText } from './utils/generationRange';
 import { 
   validateGenerationInput,
@@ -24,7 +28,7 @@ import {
  } from './services/generationApi';
 import { GenerationDraftPanel } from './components/GenerationDraftPanel';
 import { HomePage } from './components/HomePage';
-
+import { GenerationInputPanel } from './components/GenerationInputPanel';
  //用于比较的快照函数
  function createWorkspaceSnapshot(
   documents: StudyDocument[], 
@@ -42,13 +46,6 @@ import { HomePage } from './components/HomePage';
   });
 }
 
-//定义请求状态类型
-
-type InputValidationStatus = {
-  requestId: string;
-  status: 'pending' | 'success' | 'error';
-  message: string;
-}
 //建立页面状态
 function App() {
   const [loadResult] = useState(loadWorkspace);
@@ -546,106 +543,27 @@ useEffect(() => {
 
       <DocumentReader document={selectedDocument} />
       <div className="workspace-column assistant-column">
-        <GenerationRangePicker
+        <GenerationInputPanel
           document={selectedDocument}
           range={activeRange}
-          disabled={Boolean(loadError) || isReadingFile}
-          onChange={setGenerationRange}
-        />
-        <p role="status">
-          已选 {generationSource.count} / {generationSource.limit} 个字符
-        </p>
-        {generationSource.error && (
-          <p role="alert">{generationSource.error}</p>
-        )}
-        <details>
-          <summary>查看本次选定原文</summary>
-          <pre className="source-preview">{generationSource.text}</pre>
-        </details>
-        <LearningPreferencesForm
+          source={generationSource}
           preferences={preferences}
-          onChange={setPreferences}
-        />
-
-        <button
-          type="button"
-          disabled={
+          input={preparedInput}
+          validation={visibleValidation}
+          isValidating={isValidating}
+          rangeDisabled={Boolean(loadError) || isReadingFile}
+          prepareDisabled={
             Boolean(loadError) ||
             isReadingFile ||
             isValidating ||
             Boolean(generationSource.error)
           }
-          onClick={handlePrepareGenerationInput}
-        >
-          确认本次生成输入
-        </button>
-
-        {preparedInput && (
-          <details open>
-            <summary>最近一次确认输入</summary>
-
-            <p>来源：{preparedInput.documentTitle}</p>
-
-            <p>
-              范围：
-              {preparedInput.range.mode === 'whole'
-              ?'整篇资料'
-              :'选定片段'}
-            , 共{preparedInput.characterCount}个字符  
-
-            </p>
-
-            <p>
-              学习目标：
-              {{
-                understand: '理解',
-                review: '复习',
-                interview: '面试',
-              }[preparedInput.preferences.goal]}
-            </p>
-
-            <p>
-              当前基础：
-              {preparedInput.preferences.level === 'beginner'
-              ?'初次掌握'
-              :'已经学过'}
-            </p>
-
-            <p>
-              内容详略：
-              {preparedInput.preferences.detail === 'concise'
-              ?'简洁'
-              :'详细'}
-            </p>
-
-            <pre className="source-preview">
-              {preparedInput.sourceText}
-            </pre>
-
-            <p>修改来源或偏好后，请重新确认</p>
-            <button
-              type="button"
-              disabled={
-                Boolean(loadError) ||
-                isValidating
-              }
-              onClick={handleValidatePreparedInput}
-            >
-              {isValidating ? '正在验证...' : '验证输入'}
-            </button>
-
-            {visibleValidation && (
-              <p role ={
-                visibleValidation.status === 'error'
-                ? 'alert'
-                : 'status'
-              }>
-                {visibleValidation.message}
-              </p>
-            )}
-             
-          </details>
-        )}
+          validateDisabled={Boolean(loadError) || isValidating}
+          onRangeChange={setGenerationRange}
+          onPreferencesChange={setPreferences}
+          onPrepare={handlePrepareGenerationInput}
+          onValidate={handleValidatePreparedInput}
+        />
         {preparedInput && (
           <GenerationDraftPanel
             key={preparedInput.requestId}
