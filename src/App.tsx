@@ -23,6 +23,8 @@ import {
   type GeneratedDraft,
  } from './services/generationApi';
 import { GenerationDraftPanel } from './components/GenerationDraftPanel';
+import { HomePage } from './components/HomePage';
+
  //用于比较的快照函数
  function createWorkspaceSnapshot(
   documents: StudyDocument[], 
@@ -80,6 +82,8 @@ function App() {
   const selectedDocument = documents.find((doc) => doc.id === selectedId);
   const note = notesById[selectedId] ?? '';
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [view, setView] = useState<'home' | 'workspace'>('home');
   const [generationRange, setGenerationRange] =
     useState<GenerationRange | null>(null);
   const [preferences, setPreferences] = 
@@ -239,6 +243,8 @@ function App() {
       setSaveMessage('');
 
       setImportMessage(`已导入:${newDocument.title}`);
+      setIsLibraryOpen(false);
+      setView('workspace');
     } catch (error) {
       console.error('读取文件失败', error);
       setImportMessage('读取文件失败，请检查文件格式或内容');
@@ -422,32 +428,108 @@ useEffect(() => {
   };
 },[hasUnsavedChanges, hasCandidateEdits]);
 
-return(
-  <div>
-    <h1>AI资料研读工作台</h1>
-    <p>把学习资料整理成自己的笔记</p>
-    <div className="workspace-toolbar">
-      <label htmlFor="document-search">搜索资料标题</label>
+  return (
+    <div className="app-shell">
+      <nav className="app-rail" aria-label="工作台工具">
+        <span className="app-brand" title="AI资料研读工作台">
+          研
+        </span>
 
-      <input
-          id="document-search"
-          type="search"
-          placeholder="输入标题关键词"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-      />
-
-      <button
+        <button
           type="button"
-          disabled={searchQuery === ''}
-          onClick={() => setSearchQuery('')}
+          aria-current={view === 'home' ? 'page' : undefined}
+          onClick={() => setView('home')}
+        >
+          首页
+        </button>
+
+        <button
+          type="button"
+          aria-expanded={isLibraryOpen}
+          aria-controls="document-library"
+          onClick={() => {
+            setView('workspace');
+            setIsLibraryOpen(
+              view === 'home' ? true : !isLibraryOpen
+            );
+          }}
+        >
+          资料
+        </button>
+      </nav>
+
+      <div
+        className={
+          view === 'home'
+            ? 'app-main app-main--home'
+            : 'app-main'
+        }
       >
-          清空搜索
-      </button>
-    </div>
+        {view === 'home' && (
+          <HomePage
+            documents={documents}
+            disabled={isReadingFile || Boolean(loadError)}
+            message={loadError || importMessage}
+            onImport={handleReadNotes}
+            onOpenDocument={(id) => {
+              handleSelectDocument(id);
+              setIsLibraryOpen(false);
+              setView('workspace');
+            }}
+          />
+        )}
+        <header className="app-header" hidden={view === 'home'}>
+          <h1>AI资料研读工作台</h1>
+          <p>{selectedDocument?.title ?? '请选择或导入学习资料'}</p>
+        </header>
     
-    <div className="workspace">
-      <DocumentSidebar
+
+    <div
+      className={
+        isLibraryOpen
+          ? 'workspace workspace--library-open'//资料栏展开时，给工作区增加一个类名，CSS 据此切换列数
+          : 'workspace'
+      }
+      hidden={view === 'home'}
+    >
+      <section
+        id="document-library"
+        className="document-library"
+        aria-label="资料管理"
+        hidden={!isLibraryOpen}
+      >
+        <div className="library-header">
+          <strong>资料管理</strong>
+
+          <button
+            type="button"
+            onClick={() => setIsLibraryOpen(false)}
+          >
+            收起
+          </button>
+        </div>
+
+        {<div className="workspace-toolbar">
+          <label htmlFor="document-search">搜索资料标题</label>
+
+          <input
+              id="document-search"
+              type="search"
+              placeholder="输入标题关键词"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+          />
+
+          <button
+              type="button"
+              disabled={searchQuery === ''}
+              onClick={() => setSearchQuery('')}
+          >
+              清空搜索
+          </button>
+        </div>}
+
+        {<DocumentSidebar
           documents={visibleDocuments}
           selectedId={selectedId}
           importMessage={importMessage}
@@ -458,10 +540,12 @@ return(
           projects={initialProjects}
           deleteDisabled={Boolean(loadError) || isReadingFile}
           onDelete={handleDeleteDocument}
-/>
+/>}
+      </section>
+
 
       <DocumentReader document={selectedDocument} />
-      <div className="workspace-column">
+      <div className="workspace-column assistant-column">
         <GenerationRangePicker
           document={selectedDocument}
           range={activeRange}
@@ -589,12 +673,13 @@ return(
         onNoteChange={handleNoteChange}
         onSave={handleSaveNotes}
       />
-     </div> 
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-  )
-}  
+  );
+}
 
-export default App
+export default App;
 
 

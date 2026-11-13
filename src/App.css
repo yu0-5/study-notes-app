@@ -1,11 +1,17 @@
 .workspace {
+  position: relative;
   display: grid;
-  /* 左侧固定 240px，中间占剩余空间，右侧固定 320px */
-  grid-template-columns: 240px minmax(0, 1fr) 320px; 
-  gap: 16px;
-  padding: 16px;
-  min-height:60vh;
-  text-align:left;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+.workspace--library-open {
+  grid-template-columns:
+    320px
+    minmax(0, 1.08fr)
+    minmax(0, 1fr);
 }
 
 .workspace-column {
@@ -262,4 +268,235 @@
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  height: 100%;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.app-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 6px;
+  border-right: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.app-brand {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.app-rail button {
+  width: 100%;
+  padding: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-rail button[aria-expanded="true"] {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.app-main {
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header h1 {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+  letter-spacing: normal;
+}
+
+.app-header p {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workspace > .workspace-column {
+  min-height: 0;
+  padding: 20px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.workspace > .workspace-column + .workspace-column {
+  border-left: 1px solid var(--border);
+}
+
+.assistant-column > * {
+  flex-shrink: 0;
+}
+
+.assistant-column textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.document-library {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  padding: 16px;
+  overflow: auto;
+  box-sizing: border-box;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+}
+
+.document-library[hidden] {
+  display: none;
+}
+
+.library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.document-library .workspace-toolbar {
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+.document-library input {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.app-main--home {
+  display: block;
+  overflow: auto;
+}
+
+.app-header[hidden],
+.workspace[hidden] {
+  display: none;
+}
+
+.home-page {
+  min-height: 100%;
+  padding: 64px 24px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(
+      ellipse at 75% 15%,
+      var(--accent-bg),
+      transparent 65%
+    ),
+    var(--bg);
+}
+
+.home-content {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.home-intro {
+  margin-bottom: 36px;
+  text-align: center;
+}
+
+.home-mark {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.home-intro h1 {
+  margin: 12px 0;
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.4;
+  letter-spacing: normal;
+}
+
+.home-upload {
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.home-upload h2,
+.home-library h2 {
+  margin-bottom: 12px;
+  font-size: 22px;
+}
+
+.home-import {
+  margin: 24px 0 12px;
+  padding: 12px 20px;
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+}
+
+.home-import:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.home-hint {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.home-library {
+  margin-top: 40px;
+}
+
+.home-documents {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.home-document {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.home-document:hover {
+  border-color: var(--accent-border);
 }
