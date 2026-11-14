@@ -22,7 +22,7 @@ import { HomePage } from './components/HomePage';
 import { GenerationInputPanel } from './components/GenerationInputPanel';
 import { RightWorkspace, type RightPanel } from './components/RightWorkspace';
 import { useWorkspace } from './hooks/useWorkspace';
-
+import { AiAssistantPanel } from './components/AiAssistantPanel';
 //建立页面状态
 function App() {
   const {
@@ -435,7 +435,11 @@ useEffect(() => {
         activePanel={activePanel}
         onPanelChange={setActivePanel}
         aiPanel={
-          <>
+          <AiAssistantPanel
+            document={selectedDocument}
+            disabled={Boolean(loadError) || isReadingFile}
+            generationPanel={
+              <>
             <GenerationInputPanel
               document={selectedDocument}
               range={activeRange}
@@ -471,6 +475,8 @@ useEffect(() => {
               />
             )}
           </>
+          }
+          />
         }
         notesPanel={
           <NoteEditor
