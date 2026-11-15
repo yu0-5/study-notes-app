@@ -3,18 +3,20 @@ import type { ReactNode } from 'react';
 import type { StudyDocument } from '../types/document';
 import { ChatComposer } from './ChatComposer';
 
-import { useStudyChat } from '../hooks/useStudyChat';
+import type { StudyChat } from '../hooks/useStudyChat';
 import { MarkdownPreview } from './MarkdownPreview';
 
 type AiAssistantPanelProps = {
   document: StudyDocument | undefined;
   disabled: boolean;
+  chat: StudyChat;
   generationPanel: ReactNode;
 };
 
 export function AiAssistantPanel({
   document,
   disabled,
+  chat,
   generationPanel,
 }: AiAssistantPanelProps) {
   const [task, setTask] =
@@ -30,7 +32,7 @@ export function AiAssistantPanel({
     send: handleSend,
     stop: handleStop,
     retryLastReply: handleRetry,
-  } = useStudyChat(document, disabled);
+  } = chat;
 
   const chatDisabled = disabled || !document;
 

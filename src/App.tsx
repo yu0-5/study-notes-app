@@ -22,6 +22,7 @@ import { HomePage } from './components/HomePage';
 import { GenerationInputPanel } from './components/GenerationInputPanel';
 import { RightWorkspace, type RightPanel } from './components/RightWorkspace';
 import { useWorkspace } from './hooks/useWorkspace';
+import { useStudyChat } from './hooks/useStudyChat';
 import { AiAssistantPanel } from './components/AiAssistantPanel';
 //建立页面状态
 function App() {
@@ -42,6 +43,8 @@ function App() {
     deleteDocument,
     saveNotes: handleSaveNotes,
   } = useWorkspace();
+
+  const chat = useStudyChat(selectedDocument, Boolean(loadError) || isReadingFile);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -271,8 +274,8 @@ function handleDeleteDocument(id: string) {
   }
 
   const confirmed = window.confirm(
-    `删除“${target.title}”及其关联笔记？\n` +
-    '未保存的笔记也会移除。删除结果需要点击保存后才会持久化。'
+    `删除“${target.title}”、关联笔记及本页对话？\n` +
+    '该资料的模拟回答会停止，未保存的笔记也会移除。删除结果需要点击保存后才会持久化。'
   );
 
   if (!confirmed) {
@@ -284,6 +287,8 @@ function handleDeleteDocument(id: string) {
   if (!deleted) {
     return;
   }
+
+  chat.clearDocument(id);
 
   if(preparedInput?.documentId === id){
     setPreparedInput(null);
@@ -438,6 +443,7 @@ useEffect(() => {
           <AiAssistantPanel
             document={selectedDocument}
             disabled={Boolean(loadError) || isReadingFile}
+            chat={chat}
             generationPanel={
               <>
             <GenerationInputPanel
