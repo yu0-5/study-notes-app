@@ -25,10 +25,13 @@ export function AiAssistantPanel({
     messages,
     isReplying,
     replyingTo,
+    retryableMessageId,
     changeDraft: handleDraftChange,
     send: handleSend,
     stop: handleStop,
+    retryLastReply: handleRetry,
   } = useStudyChat(document, disabled);
+
   const chatDisabled = disabled || !document;
 
   return (
@@ -99,6 +102,15 @@ export function AiAssistantPanel({
                     )}
                     {message.status === 'completed' && <p>模拟回答已完成。</p>}
                     {message.status === 'error' && <p role="alert">{message.error}</p>}
+                    {message.id === retryableMessageId && (
+                      <button
+                        type="button"
+                        disabled={chatDisabled || isReplying}
+                        onClick={handleRetry}
+                      >
+                        重试这条回答
+                      </button>
+                    )}
                   </>
                 )}
               </article>

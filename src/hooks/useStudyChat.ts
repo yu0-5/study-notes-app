@@ -20,13 +20,23 @@ export function useStudyChat(
   const draft = draftsByDocument[documentId] ?? '';
   const messages = messagesByDocument[documentId] ?? [];
   const isReplying = replyingTo !== null;
+  const lastMessage = messages.at(-1);
 
-  useEffect(() => {
-    return () => {
-      controllerRef.current?.abort();
-      controllerRef.current = null;
-    };
-  }, []);
+  const retryableMessageId =
+    lastMessage?.role === 'assistant' &&
+    (
+        lastMessage.status === 'stopped' ||
+        lastMessage.status === 'error'
+    )
+        ? lastMessage.id
+        : null;
+
+    useEffect(() => {
+        return () => {
+        controllerRef.current?.abort();
+        controllerRef.current = null;
+        };
+    }, []);
 
   function changeDraft(content: string) {
     if (!document) {
@@ -52,6 +62,60 @@ export function useStudyChat(
     }));
   }
 
+  async function runReply(
+    sourceId: string,
+    sourceTitle: string,
+    question: string,
+    answerId: string,
+    ) {
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setReplyingTo(sourceTitle);
+
+    try {
+        await streamDemoChat({
+        documentTitle: sourceTitle,
+        question,
+        signal: controller.signal,
+        onDelta: (text) => {
+            if (controller.signal.aborted) {
+            return;
+            }
+
+            updateMessage(sourceId, answerId, (message) => ({
+            ...message,
+            content: message.content + text,
+            }));
+        },
+        });
+
+        controller.signal.throwIfAborted();
+
+        updateMessage(sourceId, answerId, (message) => ({
+        ...message,
+        status: 'completed',
+        }));
+    } catch (error) {
+        if (controllerRef.current !== controller) {
+        return;
+        }
+
+        updateMessage(sourceId, answerId, (message) => ({
+        ...message,
+        status: controller.signal.aborted ? 'stopped' : 'error',
+        error: controller.signal.aborted
+            ? undefined
+            : error instanceof Error
+            ? error.message
+            : '模拟回答失败',
+        }));
+    } finally {
+        if (controllerRef.current === controller) {
+        controllerRef.current = null;
+        setReplyingTo(null);
+        }
+    }
+    }
   async function send() {
     if (
       !document ||
@@ -83,10 +147,6 @@ export function useStudyChat(
       status: 'streaming',
     };
 
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    setReplyingTo(sourceTitle);
-
     setMessagesByDocument((previous) => ({
       ...previous,
       [sourceId]: [
@@ -101,51 +161,43 @@ export function useStudyChat(
       [sourceId]: '',
     }));
 
-    try {
-      await streamDemoChat({
-        documentTitle: sourceTitle,
-        question,
-        signal: controller.signal,
-        onDelta: (text) => {
-          if (controller.signal.aborted) {
-            return;
-          }
-
-          updateMessage(sourceId, answerId, (message) => ({
-            ...message,
-            content: message.content + text,
-          }));
-        },
-      });
-
-      controller.signal.throwIfAborted();
-
-      updateMessage(sourceId, answerId, (message) => ({
-        ...message,
-        status: 'completed',
-      }));
-    } catch (error) {
-      if (controllerRef.current !== controller) {
-        return;
-      }
-
-      updateMessage(sourceId, answerId, (message) => ({
-        ...message,
-        status: controller.signal.aborted ? 'stopped' : 'error',
-        error: controller.signal.aborted
-          ? undefined
-          : error instanceof Error
-            ? error.message
-            : '模拟回答失败',
-      }));
-    } finally {
-      if (controllerRef.current === controller) {
-        controllerRef.current = null;
-        setReplyingTo(null);
-      }
-    }
+    await runReply(sourceId, sourceTitle, question, answerId);
   }
 
+  async function retryLastReply() {
+    if (
+        !document ||
+        disabled ||
+        controllerRef.current ||
+        !retryableMessageId
+    ) {
+        return;
+    }
+
+    const questionMessage = messages.at(-2);
+
+    if (questionMessage?.role !== 'user') {
+        return;
+    }
+
+    const sourceId = document.id;
+    const sourceTitle = document.title || '未命名资料';
+    const answerId = retryableMessageId;
+
+    updateMessage(sourceId, answerId, (message) => ({
+        ...message,
+        content: '',
+        status: 'streaming',
+        error: undefined,
+    }));
+
+    await runReply(
+        sourceId,
+        sourceTitle,
+        questionMessage.content,
+        answerId,
+    );
+    }
   function stop() {
     controllerRef.current?.abort();
   }
@@ -155,8 +207,10 @@ export function useStudyChat(
     messages,
     isReplying,
     replyingTo,
+    retryableMessageId,
     changeDraft,
     send,
     stop,
+    retryLastReply,
   };
 }
