@@ -37,6 +37,7 @@
 
 .reader h3 {
   margin-top: 0;
+  overflow-wrap: anywhere;
 }
 
 .document-active {
@@ -147,6 +148,44 @@
 .note-mode-switch button[aria-pressed="true"] {
   background: var(--accent-bg);
   border-color: var(--accent-border);
+}
+
+.note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.note-actions button {
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.note-actions .note-save {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.note-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.note-export-hint {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.note-export-hint,
+.note-export-feedback,
+.note-source-title {
+  overflow-wrap: anywhere;
 }
 
 .markdown-preview {

@@ -24,6 +24,7 @@ import { RightWorkspace, type RightPanel } from './components/RightWorkspace';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useStudyChat } from './hooks/useStudyChat';
 import { AiAssistantPanel } from './components/AiAssistantPanel';
+import { downloadMarkdownNote, type NoteExportResult } from './utils/noteExport';
 //建立页面状态
 function App() {
   const {
@@ -45,6 +46,16 @@ function App() {
   } = useWorkspace();
 
   const chat = useStudyChat(selectedDocument, Boolean(loadError) || isReadingFile);
+
+  const exportDisabledReason = loadError
+    ? '读取异常尚未解决，暂时无法导出笔记'
+    : isReadingFile
+      ? '正在导入资料，请稍后导出笔记'
+      : !selectedDocument
+        ? '请选择资料后导出笔记'
+        : note.trim() === ''
+          ? '先写下一些笔记再导出'
+          : '';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -183,6 +194,26 @@ function App() {
 
   function handleNoteChange(content: string) {
     updateDocumentNote(selectedId, content);
+  }
+
+  function handleExportNote(): NoteExportResult {
+    if (exportDisabledReason || !selectedDocument) {
+      return {
+        ok: false,
+        message: exportDisabledReason || '请选择资料后导出笔记',
+      };
+    }
+
+    try {
+      // 使用当前内存中的笔记，保留未保存的编辑；不改变保存快照。
+      const fileName = downloadMarkdownNote(selectedDocument.title, note);
+      return { ok: true, fileName };
+    } catch {
+      return {
+        ok: false,
+        message: '导出失败，请重试；当前笔记仍保留在页面中',
+      };
+    }
   }
 const keyword = searchQuery.trim().toLowerCase();
 
@@ -486,6 +517,7 @@ useEffect(() => {
         }
         notesPanel={
           <NoteEditor
+            documentId={selectedDocument?.id ?? null}
             documentTitle={selectedDocument?.title ?? '未选择资料'}
             note={note}
             loadError={loadError}
@@ -498,6 +530,8 @@ useEffect(() => {
             }
             onNoteChange={handleNoteChange}
             onSave={handleSaveNotes}
+            exportDisabledReason={exportDisabledReason}
+            onExport={handleExportNote}
           />
         }
       />
