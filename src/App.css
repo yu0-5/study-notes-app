@@ -667,3 +667,22 @@
   justify-content: space-between;
   gap: 12px;
 }
+
+.chat-answer {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.chat-answer > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.chat-answer .markdown-preview {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}

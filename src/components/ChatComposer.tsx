@@ -1,20 +1,25 @@
 type ChatComposerProps = {
   value: string;
   disabled: boolean;
+  isReplying: boolean;
   onChange: (value: string) => void;
   onSend: () => void;
+  onStop: () => void;
 };
 
 export function ChatComposer({
   value,
   disabled,
+  isReplying,
   onChange,
   onSend,
+  onStop,
 }: ChatComposerProps) {
   const count = Array.from(value).length;
 
   const canSend =
     !disabled &&
+    !isReplying &&
     value.trim() !== '' &&
     count <= 1000;
 
@@ -54,9 +59,15 @@ export function ChatComposer({
           {count} / 1000 · Shift＋Enter 换行
         </span>
 
-        <button type="submit" disabled={!canSend}>
-          发送
-        </button>
+        {isReplying ? (
+          <button type="button" onClick={onStop}>
+            停止回答
+          </button>
+        ) : (
+          <button type="submit" disabled={!canSend}>
+            发送
+          </button>
+        )}
       </div>
     </form>
   );
