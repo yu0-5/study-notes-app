@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StudyDocument } from '../types/document';
 import type { ChatMessage } from '../types/chat';
 import { streamDemoChat } from '../services/demoChat';
+import { streamStudyChat } from '../services/studyChatApi';
+import { createChatInput } from '../utils/studyChatInput';
+import { CHAT_SOURCE_LIMIT, type ChatMode, type StudyChatInput } from '../../shared/chat';
 
 type ActiveReply = {
   documentId: string;
@@ -19,6 +22,7 @@ export function useStudyChat(
     useState<Record<string, ChatMessage[]>>({});
 
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [mode, setMode] = useState<ChatMode>('demo');
   const activeReplyRef = useRef<ActiveReply | null>(null);
 
   const documentId = document?.id ?? '';
@@ -26,6 +30,12 @@ export function useStudyChat(
   const messages = messagesByDocument[documentId] ?? [];
   const isReplying = replyingTo !== null;
   const lastMessage = messages.at(-1);
+  const sourceCount = useMemo(() =>
+    Array.from(document?.content.replace(/\r\n?/g, '\n') ?? '').length,
+  [document?.content]);
+  const sourceError = mode !== 'ai' || !document ? ''
+    : !document.content.trim() ? '当前资料没有可供问答的正文'
+    : sourceCount > CHAT_SOURCE_LIMIT ? '当前原文超过 12000 个字符，真实问答暂支持整篇短资料，请先导入精简后的内容' : '';
 
   const retryableMessageId =
     lastMessage?.role === 'assistant' &&
@@ -79,6 +89,8 @@ export function useStudyChat(
     sourceTitle: string,
     question: string,
     answerId: string,
+    replyMode: ChatMode,
+    input?: StudyChatInput,
   ) {
     const controller = new AbortController();
     const activeReply: ActiveReply = { documentId: sourceId, controller };
@@ -86,24 +98,22 @@ export function useStudyChat(
     setReplyingTo(sourceTitle);
 
     try {
-      await streamDemoChat({
-        documentTitle: sourceTitle,
-        question,
-        signal: controller.signal,
-        onDelta: (text) => {
-          if (
-            controller.signal.aborted ||
-            activeReplyRef.current !== activeReply
-          ) {
-            return;
-          }
+      const onDelta = (text: string) => {
+        if (controller.signal.aborted || activeReplyRef.current !== activeReply) return;
 
-          updateMessage(sourceId, answerId, (message) => ({
-            ...message,
-            content: message.content + text,
-          }));
-        },
-      });
+        updateMessage(sourceId, answerId, (message) => ({
+          ...message,
+          content: message.content + text,
+        }));
+      };
+      let model: string | undefined;
+      if (replyMode === 'ai') {
+        if (!input) throw new Error('问答输入缺失，请重新提问');
+        const result = await streamStudyChat(input, controller.signal, onDelta);
+        model = result.model;
+      } else {
+        await streamDemoChat({ documentTitle: sourceTitle, question, signal: controller.signal, onDelta });
+      }
 
       controller.signal.throwIfAborted();
 
@@ -114,6 +124,7 @@ export function useStudyChat(
       updateMessage(sourceId, answerId, (message) => ({
         ...message,
         status: 'completed',
+        model,
       }));
     } catch (error) {
       if (activeReplyRef.current !== activeReply) {
@@ -127,7 +138,7 @@ export function useStudyChat(
           ? undefined
           : error instanceof Error
             ? error.message
-            : '模拟回答失败',
+            : '回答失败，请重试',
       }));
     } finally {
       if (activeReplyRef.current === activeReply) {
@@ -141,6 +152,7 @@ export function useStudyChat(
     if (
       !document ||
       disabled ||
+      sourceError ||
       activeReplyRef.current ||
       draft.trim() === '' ||
       Array.from(draft).length > 1000
@@ -153,12 +165,14 @@ export function useStudyChat(
     const sourceTitle = document.title || '未命名资料';
     const question = draft.trim();
     const answerId = crypto.randomUUID();
+    const input = mode === 'ai' ? createChatInput(document, question, messages) : undefined;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: question,
       status: 'completed',
+      mode,
     };
 
     const assistantMessage: ChatMessage = {
@@ -166,6 +180,8 @@ export function useStudyChat(
       role: 'assistant',
       content: '',
       status: 'streaming',
+      mode,
+      input,
     };
 
     setMessagesByDocument((previous) => ({
@@ -182,7 +198,7 @@ export function useStudyChat(
       [sourceId]: '',
     }));
 
-    await runReply(sourceId, sourceTitle, question, answerId);
+    await runReply(sourceId, sourceTitle, question, answerId, mode, input);
   }
 
   async function retryLastReply() {
@@ -204,12 +220,20 @@ export function useStudyChat(
     const sourceId = document.id;
     const sourceTitle = document.title || '未命名资料';
     const answerId = retryableMessageId;
+    const previousAnswer = messages.at(-1)!;
+    const replyMode = previousAnswer.mode ?? 'demo';
+    setMode(replyMode);
+    // 重试复用原问题、原文和历史快照，但使用新的传输请求 ID。
+    const input = previousAnswer.input
+      ? { ...previousAnswer.input, requestId: crypto.randomUUID() }
+      : undefined;
 
     updateMessage(sourceId, answerId, (message) => ({
       ...message,
       content: '',
       status: 'streaming',
       error: undefined,
+      input,
     }));
 
     await runReply(
@@ -217,6 +241,8 @@ export function useStudyChat(
       sourceTitle,
       questionMessage.content,
       answerId,
+      replyMode,
+      input,
     );
   }
 
@@ -250,6 +276,12 @@ export function useStudyChat(
   }
 
   return {
+    mode,
+    changeMode: (nextMode: ChatMode) => {
+      if (!activeReplyRef.current) setMode(nextMode);
+    },
+    sourceCount,
+    sourceError,
     draft,
     messages,
     isReplying,

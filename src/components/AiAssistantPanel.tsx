@@ -32,6 +32,10 @@ export function AiAssistantPanel({
     send: handleSend,
     stop: handleStop,
     retryLastReply: handleRetry,
+    mode,
+    changeMode,
+    sourceCount,
+    sourceError,
   } = chat;
 
   const chatDisabled = disabled || !document;
@@ -71,11 +75,26 @@ export function AiAssistantPanel({
           当前资料：{document?.title ?? '请先选择资料'}
         </p>
 
+        <label className="chat-mode-picker">
+          问答方式
+          <select value={mode} disabled={disabled || isReplying}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'demo' || value === 'ai') changeMode(value);
+            }}>
+            <option value="demo">模拟问答</option>
+            <option value="ai">DeepSeek 真实问答</option>
+          </select>
+        </label>
+
         <p className="chat-demo-hint">
           {isReplying
-            ? `正在为《${replyingTo}》模拟回答，可停止后继续提问。`
-            : '当前为模拟回答，不分析正文、不调用真实模型。'}
+            ? `正在为《${replyingTo}》${mode === 'ai' ? '生成真实回答' : '模拟回答'}，可停止后继续提问。`
+            : mode === 'ai'
+              ? `将发送当前整篇原文（${sourceCount} / 12000 个字符）与最近最多 4 轮完整真实问答给 DeepSeek，消耗 API 额度；历史合计最多 12000 字符。`
+              : '当前为模拟回答，不分析正文、不调用真实模型。'}
         </p>
+        {sourceError && <p role="alert">{sourceError}</p>}
 
         <div className="chat-messages" aria-label="对话记录">
           {messages.length === 0 ? (
@@ -86,7 +105,7 @@ export function AiAssistantPanel({
                 className={message.role === 'user' ? 'chat-question' : 'chat-answer'}
                 key={message.id}
               >
-                <strong>{message.role === 'user' ? '你' : '助手（模拟）'}</strong>
+                <strong>{message.role === 'user' ? '你' : message.mode === 'ai' ? '助手（DeepSeek）' : '助手（模拟）'}</strong>
                 {message.role === 'user' ? (
                   <p>{message.content}</p>
                 ) : (
@@ -97,14 +116,16 @@ export function AiAssistantPanel({
                       <p>尚未收到正文。</p>
                     )}
                     {message.status === 'streaming' && (
-                      <p role="status">正在模拟回答……</p>
+                      <p role="status">{message.mode === 'ai' ? '正在接收回答……' : '正在模拟回答……'}</p>
                     )}
                     {message.status === 'stopped' && (
                       <p>已停止，以上为未完成片段。</p>
                     )}
-                    {message.status === 'completed' && <p>模拟回答已完成。</p>}
+                    {message.status === 'completed' && <p>{message.mode === 'ai' ? `回答已完成，模型：${message.model}` : '模拟回答已完成。'}</p>}
                     {message.status === 'error' && <p role="alert">{message.error}</p>}
                     {message.id === retryableMessageId && (
+                      <div>
+                      <p>重试沿用这条回答原有的生成方式和资料快照。</p>
                       <button
                         type="button"
                         disabled={chatDisabled || isReplying}
@@ -112,6 +133,7 @@ export function AiAssistantPanel({
                       >
                         重试这条回答
                       </button>
+                      </div>
                     )}
                   </>
                 )}
@@ -122,7 +144,7 @@ export function AiAssistantPanel({
 
         <ChatComposer
           value={draft}
-          disabled={chatDisabled}
+          disabled={chatDisabled || Boolean(sourceError)}
           isReplying={isReplying}
           onChange={handleDraftChange}
           onSend={handleSend}

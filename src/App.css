@@ -654,8 +654,26 @@
 }
 
 .chat-task-panel > p,
+.chat-mode-picker,
 .chat-composer {
   flex-shrink: 0;
+}
+
+.chat-mode-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-mode-picker select {
+  max-width: 100%;
+  padding: 6px;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
 }
 
 .chat-demo-hint,

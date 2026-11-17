@@ -306,7 +306,7 @@ function handleDeleteDocument(id: string) {
 
   const confirmed = window.confirm(
     `删除“${target.title}”、关联笔记及本页对话？\n` +
-    '该资料的模拟回答会停止，未保存的笔记也会移除。删除结果需要点击保存后才会持久化。'
+    '该资料正在进行的问答会停止，未保存的笔记也会移除。删除结果需要点击保存后才会持久化。'
   );
 
   if (!confirmed) {

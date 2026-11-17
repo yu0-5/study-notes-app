@@ -105,3 +105,28 @@
 本轮统一检查结果：`npm.cmd run check` 通过，共 53 个 Vitest 用例（本阶段新增 29 个），两份 SSE 检查、ESLint、TypeScript 和生产构建均通过。浏览器自动验收为 2 个浏览器各 14 项检查，共核对 14 份下载文件。
 
 验证范围为本机 Edge/Chrome 的 1440×960、1024×768 窗口。未测试 Firefox、Safari、手机窗口或操作系统保存对话框取消结果；页面仅提示“已发起下载”，不宣称用户已经落盘。
+
+## DeepSeek 真实问答阶段（2026-11-17）
+
+目标：当前原文与有限的真实历史上下文，通过后端 DeepSeek 流式问答，在原有 UI 中展示，并保持取消、重试和资料隔离。
+
+实现与取舍：
+
+- `shared/chat.ts` 与 `server/validators/chatInput.ts`：共用输入约定、Unicode 字符预算；后端运行时拒绝空白、超长、额外字段或无效历史。
+- `server/services/deepSeekClient.ts`：从笔记生成中提取服务端模型配置、鉴权、错误处理和 SSE 消费，两种任务各自构造提示词；密钥不进入浏览器。
+- `server/routes/studyChat.ts`：`POST /api/chats/stream`，输出 start/delta/done/error；支持背压等待、连接关闭取消和 finally 解锁。与原笔记生成共用模型任务锁。
+- `src/services/studyChatApi.ts`：读取 POST 响应字节流，校验请求/资料 ID、开始与完成顺序、最终内容一致性；没有完整 done 不标记成功。
+- `src/utils/studyChatInput.ts`：最近最多 4 轮已完成真实问答，总计 12000 码点；只保留完整问答对，不向模型传入模拟和未完成内容。
+- `useStudyChat` 与 `AiAssistantPanel`：默认模拟，显式选择真实模式；按消息记录生成方式与请求快照。重试保留原来源和上下文，生成新的请求 ID，复用回答位置，迟到回调不能解锁新任务或复活删除会话。
+
+本轮验收：
+
+- [x] `npm.cmd run check` 通过：87 个 Vitest 用例、两份 SSE 检查、ESLint、TypeScript 和生产构建。含原笔记生成抽取后的适配回归。
+- [x] Node 本地 HTTP 测试验证校验错误、SSE 转发、并发 409、客户端中止向上游传播、错误后释放锁。
+- [x] 前端协议逐字节中文/emoji、请求错配、缺少完成、顺序异常、正文不一致和停止检查。
+- [x] Edge、Chrome 各完成 9 项受控流式浏览器检查：默认模拟无请求、原文传输、多轮历史、部分失败重试、模式还原、面板切换、跨资料停止、长原文拦截、1024×768 输入框可见性及正常控制台。
+- [x] 在 Edge 用独立页面、自造短资料完成 **1 次真实 DeepSeek 请求**，经 Vite 5173 → Express 3001 → 模型返回“青竹”，页面显示真实模型与完成状态。未读取或输出密钥，未用用户的学习资料测试。
+
+受控浏览器测试使用实际 Express 问答路由和依赖注入的本地流式上游，不消耗额度；真实模型仅执行上述一次短问题。测试环境无 Browser 插件，使用 F 盘临时 Playwright 驱动本机浏览器。结果、脚本与截图：`F:\CodexData\outputs\study-notes-app-real-chat-20261117`。
+
+限制：验证了本机 Edge/Chrome 的 1440×960、1024×768，不声明手机或其他浏览器已验收。单次真实调用证明当时链路可用，不证明所有问题的回答质量或来源可靠性。未提供公开部署、RAG、会话持久化或长文检索。

@@ -7,6 +7,8 @@ import {generationInputSchema} from './validators/generationInput.js';
 import { randomUUID } from 'node:crypto';
 import { buildDemoDraft } from './services/demoGeneration.js';
 import { once } from 'node:events';
+import { createStudyChatRouter } from './routes/studyChat.js';
+import { streamStudyChat } from './services/studyChat.js';
 
 const envPath = new URL('../.env', import.meta.url);
 
@@ -81,6 +83,16 @@ app.post('/api/demo/generations', (request, response) => {
   });
 });
 let isModleGenerating = false;
+
+// 与笔记生成共用单进程任务锁，避免两个入口同时占用模型。
+app.use(createStudyChatRouter({
+  stream: streamStudyChat,
+  acquire: () => {
+    if (isModleGenerating) return null;
+    isModleGenerating = true;
+    return () => { isModleGenerating = false; };
+  },
+}));
 
 app.post('/api/generations', async (request, response) => { 
   const body : unknown = request.body;
