@@ -1,6 +1,7 @@
 type ChatComposerProps = {
   value: string;
   disabled: boolean;
+  sendDisabled?: boolean;
   isReplying: boolean;
   onChange: (value: string) => void;
   onSend: () => void;
@@ -10,6 +11,7 @@ type ChatComposerProps = {
 export function ChatComposer({
   value,
   disabled,
+  sendDisabled = false,
   isReplying,
   onChange,
   onSend,
@@ -19,6 +21,7 @@ export function ChatComposer({
 
   const canSend =
     !disabled &&
+    !sendDisabled &&
     !isReplying &&
     value.trim() !== '' &&
     count <= 1000;

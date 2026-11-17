@@ -130,3 +130,9 @@
 受控浏览器测试使用实际 Express 问答路由和依赖注入的本地流式上游，不消耗额度；真实模型仅执行上述一次短问题。测试环境无 Browser 插件，使用 F 盘临时 Playwright 驱动本机浏览器。结果、脚本与截图：`F:\CodexData\outputs\study-notes-app-real-chat-20261117`。
 
 限制：验证了本机 Edge/Chrome 的 1440×960、1024×768，不声明手机或其他浏览器已验收。单次真实调用证明当时链路可用，不证明所有问题的回答质量或来源可靠性。未提供公开部署、RAG、会话持久化或长文检索。
+
+### 真实模式输入框修正（2026-11-17）
+
+原实现把 `sourceError` 传给输入组件的整体 `disabled`，原文超长或为空时连问题编辑也被禁用。现在拆分为工作台整体禁用和 `sendDisabled`：资料错误只阻止发送及 Enter 提交，允许输入、修改和保留草稿；Hook 和后端长度校验保持生效。
+
+新增 `AiAssistantPanel.test.tsx` 覆盖超长/空原文、短原文以及工作台禁用状态。独立 Edge、Chrome 会话均验证了输入可编辑、错误可见、发送与 Enter 被阻止、切换模式保留草稿、短原文恢复发送，且未发出网络或模型请求。验收脚本和截图在 `F:\CodexData\outputs\study-notes-app-chat-input-fix-20261117`。

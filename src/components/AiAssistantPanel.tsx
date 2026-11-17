@@ -144,7 +144,8 @@ export function AiAssistantPanel({
 
         <ChatComposer
           value={draft}
-          disabled={chatDisabled || Boolean(sourceError)}
+          disabled={chatDisabled}
+          sendDisabled={Boolean(sourceError)}
           isReplying={isReplying}
           onChange={handleDraftChange}
           onSend={handleSend}
